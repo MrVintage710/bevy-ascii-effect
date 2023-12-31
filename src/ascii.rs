@@ -1,4 +1,4 @@
-use bevy::{app::Plugin, prelude::{App, World}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::RenderDevice, view::ViewTarget, texture::BevyDefault}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::AssetServer};
+use bevy::{app::Plugin, prelude::{App, World, Deref, DerefMut}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, AsBindGroupShaderType, TextureView, TextureViewDescriptor, TextureAspect}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::RenderDevice, view::ViewTarget, texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler}, render_asset::RenderAssets, extract_resource::ExtractResource}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::{AssetServer, Handle, Assets}};
 
 pub struct AsciiShaderPlugin;
 
@@ -106,6 +106,8 @@ impl ViewNode for AsciiShaderNode {
             &BindGroupEntries::sequential((
                 // Make sure to use the source view
                 post_process.source,
+                // use the font texture
+                &post_process_pipeline.font_texture,
                 // Use the sampler created for the pipeline
                 &post_process_pipeline.sampler,
                 // Set the settings binding
@@ -145,6 +147,7 @@ impl ViewNode for AsciiShaderNode {
 struct AsciiShaderPipeline {
     layout: BindGroupLayout,
     sampler: Sampler,
+    font_texture: TextureView,
     pipeline_id: CachedRenderPipelineId,
 }
 
@@ -166,16 +169,27 @@ impl FromWorld for AsciiShaderPipeline {
                     },
                     count: None,
                 },
-                // The sampler that will be used to sample the screen texture
+                // This is the texture for the ascii font
                 BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // The sampler that will be used to sample the screen texture
+                BindGroupLayoutEntry {
+                    binding: 2,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
                 },
                 // The settings uniform that will control the effect
                 BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 3,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: bevy::render::render_resource::BufferBindingType::Uniform,
@@ -195,11 +209,35 @@ impl FromWorld for AsciiShaderPipeline {
             .resource::<AssetServer>()
             .load("ascii.wgsl");
         
+        println!("{:?}", include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/",
+            "font.png"
+        )));
+        
+        let font_texture = Image::from_buffer(
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/",
+                "font.png"
+            )),
+            ImageType::Extension("png"),
+            CompressedImageFormats::from_name("png").unwrap_or(CompressedImageFormats::NONE),
+            true,
+            ImageSampler::linear()
+        ).expect("There was an error reading an internal texture.");
+        
+        let font_texture = render_device.create_texture(&font_texture.texture_descriptor);
+        let font_texture = font_texture.create_view(&TextureViewDescriptor { 
+            label: "ascii_font_texture".into(),
+            ..Default::default()
+        });
+        
         let pipeline_id = world
             .resource_mut::<PipelineCache>()
             // This will add the pipeline to the cache and queue it's creation
             .queue_render_pipeline(RenderPipelineDescriptor {
-                label: Some("post_process_pipeline".into()),
+                label: Some("ascii_post_process_shader".into()),
                 layout: vec![layout.clone()],
                 // This will setup a fullscreen triangle for the vertex state
                 vertex: fullscreen_shader_vertex_state(),
@@ -226,6 +264,7 @@ impl FromWorld for AsciiShaderPipeline {
         AsciiShaderPipeline {
             layout,
             sampler,
+            font_texture,
             pipeline_id,
         }
     }
@@ -242,3 +281,10 @@ pub struct AsciiShaderSettings {
     #[cfg(feature = "webgl2")]
     pub _webgl2_padding: Vec3,
 }
+
+//=============================================================================
+//             Ascii Texutre Resource
+//=============================================================================
+
+#[derive(Resource, ExtractResource, Deref, DerefMut, Clone)]
+struct AciiTextureHandle(Handle<Image>);
