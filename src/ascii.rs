@@ -1,4 +1,4 @@
-use bevy::{app::Plugin, prelude::{App, World, Deref, DerefMut}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, AsBindGroupShaderType, TextureView, TextureViewDescriptor, TextureAspect}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::RenderDevice, view::ViewTarget, texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler}, render_asset::RenderAssets, extract_resource::ExtractResource}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::{AssetServer, Handle, Assets}};
+use bevy::{app::Plugin, prelude::{App, World, Deref, DerefMut}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, AsBindGroupShaderType, TextureView, TextureViewDescriptor, TextureAspect, ImageDataLayout, ImageCopyTextureBase, ImageCopyTexture, Origin3d, AddressMode, FilterMode}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::{RenderDevice, RenderQueue}, view::ViewTarget, texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler, ImageSamplerDescriptor, ImageFormat}, render_asset::RenderAssets, extract_resource::ExtractResource}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::{AssetServer, Handle, Assets}};
 
 pub struct AsciiShaderPlugin;
 
@@ -23,10 +23,10 @@ impl Plugin for AsciiShaderPlugin {
         .add_render_graph_edges(
             core_3d::graph::NAME, 
             &[
-                        core_3d::graph::node::TONEMAPPING,
-                        AsciiShaderNode::NAME,
-                        core_3d::graph::node::END_MAIN_PASS_POST_PROCESSING,
-                    ],
+                core_3d::graph::node::TONEMAPPING,
+                AsciiShaderNode::NAME,
+                core_3d::graph::node::END_MAIN_PASS_POST_PROCESSING,
+            ],
         );
     }
 
@@ -153,6 +153,7 @@ struct AsciiShaderPipeline {
 
 impl FromWorld for AsciiShaderPipeline {
     fn from_world(world: &mut World) -> Self {
+        let queue = world.get_resource::<RenderQueue>().unwrap();
         let render_device = world.resource::<RenderDevice>();
         
         //We need to create the bind group
@@ -203,32 +204,55 @@ impl FromWorld for AsciiShaderPipeline {
         });
     
         // We can create the sampler here since it won't change at runtime and doesn't depend on the view
-        let sampler = render_device.create_sampler(&SamplerDescriptor::default());
+        let sampler = render_device.create_sampler(&SamplerDescriptor{
+            label: Some("ascii_font_sampler"),
+            address_mode_u: AddressMode::Repeat,
+            address_mode_v: AddressMode::Repeat,
+            address_mode_w: AddressMode::Repeat,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
+            mipmap_filter: FilterMode::Nearest,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 4.0,
+            compare: None,
+            anisotropy_clamp: 1,
+            border_color: None,
+        });
         
         let shader = world
             .resource::<AssetServer>()
             .load("ascii.wgsl");
-        
-        println!("{:?}", include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/assets/",
-            "font.png"
-        )));
-        
+
         let font_texture = Image::from_buffer(
             include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/",
                 "font.png"
             )),
-            ImageType::Extension("png"),
-            CompressedImageFormats::from_name("png").unwrap_or(CompressedImageFormats::NONE),
+            ImageType::Format(ImageFormat::Png),
+            CompressedImageFormats::default(),
             true,
-            ImageSampler::linear()
+            ImageSampler::nearest()
         ).expect("There was an error reading an internal texture.");
-        
-        let font_texture = render_device.create_texture(&font_texture.texture_descriptor);
-        let font_texture = font_texture.create_view(&TextureViewDescriptor { 
+
+        let texture = render_device.create_texture(&font_texture.texture_descriptor);
+        queue.write_texture(
+            ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: Origin3d::ZERO,
+                aspect: TextureAspect::All,
+            }, 
+            &font_texture.data, 
+            ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * font_texture.width()),
+                rows_per_image: Some(font_texture.height()),
+            }, 
+            Extent3d { width: font_texture.width(), height: font_texture.height(), depth_or_array_layers: 1 }
+        );
+
+        let font_texture = texture.create_view(&TextureViewDescriptor { 
             label: "ascii_font_texture".into(),
             ..Default::default()
         });
