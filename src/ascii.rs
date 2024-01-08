@@ -1,4 +1,4 @@
-use bevy::{app::Plugin, prelude::{App, World, Deref, DerefMut}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, AsBindGroupShaderType, TextureView, TextureViewDescriptor, TextureAspect, ImageDataLayout, ImageCopyTextureBase, ImageCopyTexture, Origin3d, AddressMode, FilterMode}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::{RenderDevice, RenderQueue}, view::ViewTarget, texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler, ImageSamplerDescriptor, ImageFormat}, render_asset::RenderAssets, extract_resource::ExtractResource}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::{AssetServer, Handle, Assets}};
+use bevy::{app::Plugin, prelude::{App, World, Deref, DerefMut}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, AsBindGroupShaderType, TextureView, TextureViewDescriptor, TextureAspect, ImageDataLayout, ImageCopyTextureBase, ImageCopyTexture, Origin3d, AddressMode, FilterMode, TextureUsages}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::{RenderDevice, RenderQueue}, view::{ViewTarget, PostProcessWrite}, texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler, ImageSamplerDescriptor, ImageFormat}, render_asset::RenderAssets, extract_resource::ExtractResource}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::{AssetServer, Handle, Assets}};
 
 pub struct AsciiShaderPlugin;
 
@@ -41,6 +41,28 @@ impl Plugin for AsciiShaderPlugin {
     }
 }
 
+
+pub struct DownsizeShaderNode;
+impl DownsizeShaderNode {
+    const NAME : &'static str = "DownsizeShaderNode";
+}
+
+impl ViewNode for DownsizeShaderNode {
+    type ViewQuery = &'static ViewTarget;
+
+    fn run(
+        &self,
+        graph: &mut bevy::render::render_graph::RenderGraphContext,
+        render_context: &mut bevy::render::renderer::RenderContext,
+        view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
+        world: &World,
+    ) -> Result<(), bevy::render::render_graph::NodeRunError> {
+        view_query.sampled_main_texture_view();
+
+        Ok(())   
+    }
+}
+
 //=============================================================================
 //             Ascii Shader Node
 //=============================================================================
@@ -76,13 +98,13 @@ impl ViewNode for AsciiShaderNode {
         else {
             return Ok(());
         };
-        
+
         // Get the settings uniform binding
         let settings_uniforms = world.resource::<ComponentUniforms<AsciiShaderSettings>>();
         let Some(settings_binding) = settings_uniforms.uniforms().binding() else {
             return Ok(());
         };
-        
+
         // This will start a new "post process write", obtaining two texture
         // views from the view target - a `source` and a `destination`.
         // `source` is the "current" main texture and you _must_ write into
@@ -91,7 +113,7 @@ impl ViewNode for AsciiShaderNode {
         // texture to the `destination` texture. Failing to do so will cause
         // the current main texture information to be lost.
         let post_process = view_query.post_process_write();
-        
+
         // The bind_group gets created each frame.
         //
         // Normally, you would create a bind_group in the Queue set,
@@ -117,7 +139,7 @@ impl ViewNode for AsciiShaderNode {
         
         // Begin the render pass
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-            label: Some("post_process_pass"),
+            label: Some("ascii_post_process_pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 // We need to specify the post process destination view here
                 // to make sure we write to the appropriate texture.
@@ -127,7 +149,7 @@ impl ViewNode for AsciiShaderNode {
             })],
             depth_stencil_attachment: None,
         });
-        
+
         // This is mostly just wgpu boilerplate for drawing a fullscreen triangle,
         // using the pipeline/bind_group created above
         render_pass.set_render_pipeline(pipeline);
@@ -148,6 +170,7 @@ struct AsciiShaderPipeline {
     layout: BindGroupLayout,
     sampler: Sampler,
     font_texture: TextureView,
+    low_res_texture: Texture,
     pipeline_id: CachedRenderPipelineId,
 }
 
@@ -204,21 +227,23 @@ impl FromWorld for AsciiShaderPipeline {
         });
     
         // We can create the sampler here since it won't change at runtime and doesn't depend on the view
-        let sampler = render_device.create_sampler(&SamplerDescriptor{
-            label: Some("ascii_font_sampler"),
-            address_mode_u: AddressMode::Repeat,
-            address_mode_v: AddressMode::Repeat,
-            address_mode_w: AddressMode::Repeat,
-            mag_filter: FilterMode::Nearest,
-            min_filter: FilterMode::Nearest,
-            mipmap_filter: FilterMode::Nearest,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 4.0,
-            compare: None,
-            anisotropy_clamp: 1,
-            border_color: None,
-        });
+        // let sampler = render_device.create_sampler(&SamplerDescriptor{
+        //     label: Some("ascii_font_sampler"),
+        //     address_mode_u: AddressMode::Repeat,
+        //     address_mode_v: AddressMode::Repeat,
+        //     address_mode_w: AddressMode::Repeat,
+        //     mag_filter: FilterMode::Nearest,
+        //     min_filter: FilterMode::Nearest,
+        //     mipmap_filter: FilterMode::Nearest,
+        //     lod_min_clamp: 0.0,
+        //     lod_max_clamp: 4.0,
+        //     compare: None,
+        //     anisotropy_clamp: 1,
+        //     border_color: None,
+        // });
         
+        let sampler = render_device.create_sampler(&SamplerDescriptor::default());
+
         let shader = world
             .resource::<AssetServer>()
             .load("ascii.wgsl");
@@ -256,6 +281,17 @@ impl FromWorld for AsciiShaderPipeline {
             label: "ascii_font_texture".into(),
             ..Default::default()
         });
+
+        let low_res_texture = render_device.create_texture(&TextureDescriptor {
+            label: "low_res_texture".into(),
+            size: Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: texture.format(),
+            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[TextureFormat::bevy_default()],
+        });
         
         let pipeline_id = world
             .resource_mut::<PipelineCache>()
@@ -289,6 +325,7 @@ impl FromWorld for AsciiShaderPipeline {
             layout,
             sampler,
             font_texture,
+            low_res_texture,
             pipeline_id,
         }
     }
@@ -300,15 +337,27 @@ impl FromWorld for AsciiShaderPipeline {
 
 #[derive(Component, Default, Clone, Copy, ExtractComponent, ShaderType)]
 pub struct AsciiShaderSettings {
-    pub intensity: f32,
+    pub pixels_per_character: f32,
     // WebGL2 structs must be 16 byte aligned.
     #[cfg(feature = "webgl2")]
     pub _webgl2_padding: Vec3,
 }
 
-//=============================================================================
-//             Ascii Texutre Resource
-//=============================================================================
+impl AsciiShaderSettings {
+    pub fn buffer(&self) -> AsciiShaderSettingsBuffer {
+        AsciiShaderSettingsBuffer {
+            pixels_per_character: self.pixels_per_character,
+            #[cfg(feature = "webgl2")]
+            _webgl2_padding: Vec3::ZERO,
+        }
+    }
+}
 
-#[derive(Resource, ExtractResource, Deref, DerefMut, Clone)]
-struct AciiTextureHandle(Handle<Image>);
+
+#[derive(ShaderType)]
+pub struct AsciiShaderSettingsBuffer {
+    pub pixels_per_character: f32,
+    // WebGL2 structs must be 16 byte aligned.
+    #[cfg(feature = "webgl2")]
+    pub _webgl2_padding: Vec3,
+}

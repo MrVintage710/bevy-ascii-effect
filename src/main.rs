@@ -4,6 +4,9 @@ use ascii::{AsciiShaderPlugin, AsciiShaderSettings};
 use bevy::{prelude::*, pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap}, diagnostic::FrameTimeDiagnosticsPlugin, window::close_on_esc};
 use bevy_panorbit_camera::{PanOrbitCameraPlugin, PanOrbitCamera};
 
+use bevy_inspector_egui::prelude::*;
+use bevy_inspector_egui::quick::ResourceInspectorPlugin;
+
 fn main() {
     App::new()
         .add_plugins((
@@ -15,6 +18,12 @@ fn main() {
         .add_systems(Update, close_on_esc)
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
+
+        //Debug Stuff
+        .init_resource::<ShaderOptions>()
+        .register_type::<ShaderOptions>()
+        .add_plugins(ResourceInspectorPlugin::<ShaderOptions>::default())
+
         .run();
 }
 
@@ -26,7 +35,7 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         PanOrbitCamera::default(),
         AsciiShaderSettings {
-            intensity: 0.02,
+            pixels_per_character: 24.0,
             ..default()
         },
     ));
@@ -55,3 +64,13 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
+//==============================================================================
+//                    Debug
+//==============================================================================
+
+#[derive(Reflect, Resource, Default, InspectorOptions)]
+#[reflect(Resource, InspectorOptions)]
+pub struct ShaderOptions {
+    #[inspector(min = 24.0)]
+    pub pixels_per_character: f32,
+}
