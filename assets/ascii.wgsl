@@ -25,7 +25,7 @@
 @group(0) @binding(2) var texture_sampler: sampler;
 
 struct PostProcessSettings {
-    intensity: f32,
+    pixels_per_character: f32,
 #ifdef SIXTEEN_BYTE_ALIGNMENT
     // WebGL2 structs must be 16 byte aligned.
     _webgl2_padding: vec3<f32>
@@ -51,7 +51,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     );
 
     let output_dims = vec2<f32>(textureDimensions(screen_texture));
-    let terminal_dims = vec2<f32>(floor(output_dims.x / PIXELS_PER_CHARACTER), floor(output_dims.y / PIXELS_PER_CHARACTER));
+    let terminal_dims = vec2<f32>(floor(output_dims.x / settings.pixels_per_character), floor(output_dims.y / settings.pixels_per_character));
     let character_dims = (output_dims / terminal_dims) / output_dims;
 
     let fragment_value = (in.uv % character_dims) / character_dims;

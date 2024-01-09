@@ -19,10 +19,6 @@ fn main() {
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
 
-        //Debug Stuff
-        .init_resource::<ShaderOptions>()
-        .register_type::<ShaderOptions>()
-        .add_plugins(ResourceInspectorPlugin::<ShaderOptions>::default())
 
         .run();
 }
@@ -34,10 +30,6 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         PanOrbitCamera::default(),
-        AsciiShaderSettings {
-            pixels_per_character: 24.0,
-            ..default()
-        },
     ));
     
     commands.spawn(DirectionalLightBundle {
@@ -62,15 +54,4 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         scene: asset_server.load("Skull.glb#Scene0"),
         ..default()
     });
-}
-
-//==============================================================================
-//                    Debug
-//==============================================================================
-
-#[derive(Reflect, Resource, Default, InspectorOptions)]
-#[reflect(Resource, InspectorOptions)]
-pub struct ShaderOptions {
-    #[inspector(min = 24.0)]
-    pub pixels_per_character: f32,
 }

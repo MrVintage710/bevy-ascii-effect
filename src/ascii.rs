@@ -1,14 +1,33 @@
-use bevy::{app::Plugin, prelude::{App, World, Deref, DerefMut}, ecs::{component::Component, system::Resource, world::FromWorld}, render::{extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, render_resource::{ShaderType, BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, AsBindGroupShaderType, TextureView, TextureViewDescriptor, TextureAspect, ImageDataLayout, ImageCopyTextureBase, ImageCopyTexture, Origin3d, AddressMode, FilterMode, TextureUsages}, render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, renderer::{RenderDevice, RenderQueue}, view::{ViewTarget, PostProcessWrite}, texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler, ImageSamplerDescriptor, ImageFormat}, render_asset::RenderAssets, extract_resource::ExtractResource}, core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, asset::{AssetServer, Handle, Assets}};
+use bevy::{
+    app::Plugin, 
+    prelude::*, 
+    ecs::world::FromWorld, 
+    render::{extract_component::{ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, 
+    render_resource::{BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, TextureView, TextureViewDescriptor, TextureAspect, ImageDataLayout, ImageCopyTexture, Origin3d, TextureUsages, DynamicUniformBuffer, ShaderType, encase::internal::WriteInto}, 
+    render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, 
+    renderer::{RenderDevice, RenderQueue}, 
+    view::ViewTarget, 
+    texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler, ImageFormat}, extract_resource::{ExtractResource, ExtractResourcePlugin}}, 
+    core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, 
+    asset::AssetServer};
+use bevy_inspector_egui::{InspectorOptions, quick::ResourceInspectorPlugin};
 
 pub struct AsciiShaderPlugin;
 
 //This plugin will add the settings required for the AsciiShader and add the post precess shader to the right spot on the render graph.
 impl Plugin for AsciiShaderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            ExtractComponentPlugin::<AsciiShaderSettings>::default(),
-            UniformComponentPlugin::<AsciiShaderSettings>::default(),
-        ));
+        app.add_plugins(
+            ExtractResourcePlugin::<AsciiShaderSettings>::default()
+        )
+
+        //Debug Stuff
+        .insert_resource(AsciiShaderSettings {
+            pixels_per_character: 24.0,
+            ..Default::default()
+        })
+        .register_type::<AsciiShaderSettings>()
+        .add_plugins(ResourceInspectorPlugin::<AsciiShaderSettings>::default());
         
         // We need to get the render app from the main app
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -100,8 +119,8 @@ impl ViewNode for AsciiShaderNode {
         };
 
         // Get the settings uniform binding
-        let settings_uniforms = world.resource::<ComponentUniforms<AsciiShaderSettings>>();
-        let Some(settings_binding) = settings_uniforms.uniforms().binding() else {
+        let settings_uniforms = world.resource::<AsciiShaderSettings>().buffer(render_context.render_device(), world.get_resource::<RenderQueue>().unwrap());
+        let Some(settings_binding) = settings_uniforms.binding() else {
             return Ok(());
         };
 
@@ -218,29 +237,13 @@ impl FromWorld for AsciiShaderPipeline {
                     ty: BindingType::Buffer {
                         ty: bevy::render::render_resource::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(AsciiShaderSettings::min_size()),
+                        min_binding_size: Some(AsciiShaderSettingsBuffer::min_size()),
                     },
                     count: None,
                 },
             ],
             label: Some("AsciiShaderPipeline::bind_group_layout"),
         });
-    
-        // We can create the sampler here since it won't change at runtime and doesn't depend on the view
-        // let sampler = render_device.create_sampler(&SamplerDescriptor{
-        //     label: Some("ascii_font_sampler"),
-        //     address_mode_u: AddressMode::Repeat,
-        //     address_mode_v: AddressMode::Repeat,
-        //     address_mode_w: AddressMode::Repeat,
-        //     mag_filter: FilterMode::Nearest,
-        //     min_filter: FilterMode::Nearest,
-        //     mipmap_filter: FilterMode::Nearest,
-        //     lod_min_clamp: 0.0,
-        //     lod_max_clamp: 4.0,
-        //     compare: None,
-        //     anisotropy_clamp: 1,
-        //     border_color: None,
-        // });
         
         let sampler = render_device.create_sampler(&SamplerDescriptor::default());
 
@@ -335,21 +338,25 @@ impl FromWorld for AsciiShaderPipeline {
 //             Shader Settings
 //=============================================================================
 
-#[derive(Component, Default, Clone, Copy, ExtractComponent, ShaderType)]
+#[derive(Resource, Default, Clone, Copy, ExtractResource, Reflect, InspectorOptions)]
 pub struct AsciiShaderSettings {
+    #[inspector(min = 24.0)]
     pub pixels_per_character: f32,
-    // WebGL2 structs must be 16 byte aligned.
-    #[cfg(feature = "webgl2")]
-    pub _webgl2_padding: Vec3,
 }
 
 impl AsciiShaderSettings {
-    pub fn buffer(&self) -> AsciiShaderSettingsBuffer {
-        AsciiShaderSettingsBuffer {
+    pub fn buffer(&self, device : &RenderDevice, queue : &RenderQueue) -> DynamicUniformBuffer<AsciiShaderSettingsBuffer> {
+        let ascii_buffer = AsciiShaderSettingsBuffer {
             pixels_per_character: self.pixels_per_character,
             #[cfg(feature = "webgl2")]
             _webgl2_padding: Vec3::ZERO,
-        }
+        };
+
+        let mut dyn_buffer : DynamicUniformBuffer<AsciiShaderSettingsBuffer> = DynamicUniformBuffer::default();
+        let mut writer = dyn_buffer.get_writer(1, device, queue);
+        writer.unwrap().write(&ascii_buffer);
+
+        dyn_buffer
     }
 }
 
