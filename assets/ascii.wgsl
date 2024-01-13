@@ -63,5 +63,6 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     // let color = vec4<f32>(in.uv.x * 0.5, 0.0, 0.0, 255.0);
     // let color = vec4<f32>(textureSample(font_texture, texture_sampler, uv));
 
-    return color;
+    // return color;
+    return textureSample(screen_texture, texture_sampler, in.uv);
 }

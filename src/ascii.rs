@@ -1,84 +1,189 @@
 use bevy::{
-    app::Plugin, 
-    prelude::*, 
-    ecs::world::FromWorld, 
-    render::{extract_component::{ExtractComponentPlugin, UniformComponentPlugin, ComponentUniforms}, 
-    render_resource::{BindGroupLayoutEntry, BindGroupLayoutDescriptor, ShaderStages, BindingType, TextureSampleType, TextureViewDimension, BindGroupLayout, SamplerBindingType, SamplerDescriptor, PipelineCache, RenderPipelineDescriptor, FragmentState, ColorTargetState, TextureFormat, ColorWrites, PrimitiveState, MultisampleState, Sampler, CachedRenderPipelineId, BindGroupEntries, RenderPassColorAttachment, Operations, RenderPassDescriptor, Texture, TextureDescriptor, Extent3d, TextureDimension, TextureView, TextureViewDescriptor, TextureAspect, ImageDataLayout, ImageCopyTexture, Origin3d, TextureUsages, DynamicUniformBuffer, ShaderType, encase::internal::WriteInto}, 
-    render_graph::{ViewNode, RenderGraphApp, ViewNodeRunner}, RenderApp, 
-    renderer::{RenderDevice, RenderQueue}, 
-    view::ViewTarget, 
-    texture::{BevyDefault, Image, ImageType, CompressedImageFormats, ImageSampler, ImageFormat}, extract_resource::{ExtractResource, ExtractResourcePlugin}}, 
-    core_pipeline::{core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state}, 
-    asset::AssetServer};
-use bevy_inspector_egui::{InspectorOptions, quick::ResourceInspectorPlugin};
+    app::Plugin,
+    asset::AssetServer,
+    core_pipeline::{
+        core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state, CorePipelinePlugin,
+    },
+    ecs::world::FromWorld,
+    prelude::*,
+    render::{
+        self,
+        extract_component::{ComponentUniforms, ExtractComponentPlugin, UniformComponentPlugin},
+        extract_resource::{ExtractResource, ExtractResourcePlugin},
+        render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner},
+        render_phase::CachedRenderPipelinePhaseItem,
+        render_resource::{
+            encase::internal::WriteInto, BindGroupEntries, BindGroupLayout,
+            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, CachedRenderPipelineId,
+            ColorTargetState, ColorWrites, DynamicUniformBuffer, Extent3d, FragmentState,
+            ImageCopyTexture, ImageCopyTextureBase, ImageDataLayout, MultisampleState, Operations,
+            Origin3d, PipelineCache, PrimitiveState, RenderPassColorAttachment,
+            RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler,
+            SamplerBindingType, SamplerDescriptor, ShaderStages, ShaderType, Texture,
+            TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
+            TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
+        },
+        renderer::{RenderContext, RenderDevice, RenderQueue},
+        texture::{
+            BevyDefault, CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType,
+        },
+        view::{ExtractedWindows, PostProcessWrite, ViewTarget},
+        Render, RenderApp, RenderSet,
+    },
+};
+use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
 pub struct AsciiShaderPlugin;
 
 //This plugin will add the settings required for the AsciiShader and add the post precess shader to the right spot on the render graph.
 impl Plugin for AsciiShaderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(
-            ExtractResourcePlugin::<AsciiShaderSettings>::default()
-        )
+        app.add_plugins(ExtractResourcePlugin::<AsciiShaderSettings>::default())
+            //Debug Stuff
+            .insert_resource(AsciiShaderSettings {
+                pixels_per_character: 24.0,
+                ..Default::default()
+            })
+            .register_type::<AsciiShaderSettings>()
+            .add_plugins(ResourceInspectorPlugin::<AsciiShaderSettings>::default());
 
-        //Debug Stuff
-        .insert_resource(AsciiShaderSettings {
-            pixels_per_character: 24.0,
-            ..Default::default()
-        })
-        .register_type::<AsciiShaderSettings>()
-        .add_plugins(ResourceInspectorPlugin::<AsciiShaderSettings>::default());
-        
         // We need to get the render app from the main app
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
-        
+
         render_app
-        .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
-            core_3d::graph::NAME, 
-            AsciiShaderNode::NAME
-        )
-        .add_render_graph_edges(
-            core_3d::graph::NAME, 
-            &[
-                core_3d::graph::node::TONEMAPPING,
+            .add_systems(
+                Render,
+                prepare_pixel_shader.in_set(RenderSet::PrepareResources),
+            )
+            .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
+                core_3d::graph::NAME,
                 AsciiShaderNode::NAME,
-                core_3d::graph::node::END_MAIN_PASS_POST_PROCESSING,
-            ],
-        );
+            )
+            .add_render_graph_edges(
+                core_3d::graph::NAME,
+                &[
+                    core_3d::graph::node::TONEMAPPING,
+                    AsciiShaderNode::NAME,
+                    core_3d::graph::node::END_MAIN_PASS_POST_PROCESSING,
+                ],
+            );
     }
 
     fn finish(&self, app: &mut App) {
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
-        
+
         render_app
             // Initialize the pipeline
-            .init_resource::<AsciiShaderPipeline>();
+            .init_resource::<AsciiShaderPipeline>()
+            .init_resource::<PixelShaderPipeline>();
     }
 }
 
+//=============================================================================
+//             Downsize Shader Pipeline
+//=============================================================================
 
-pub struct DownsizeShaderNode;
-impl DownsizeShaderNode {
-    const NAME : &'static str = "DownsizeShaderNode";
+#[derive(Resource)]
+pub struct PixelShaderPipeline {
+    low_res_texture: TextureView,
+    target_size: Vec2,
+    layout: BindGroupLayout,
+    sampler: Sampler,
+    pipeline_id: CachedRenderPipelineId,
 }
 
-impl ViewNode for DownsizeShaderNode {
-    type ViewQuery = &'static ViewTarget;
+impl FromWorld for PixelShaderPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let queue = world.get_resource::<RenderQueue>().unwrap();
+        let render_device = world.resource::<RenderDevice>();
 
-    fn run(
-        &self,
-        graph: &mut bevy::render::render_graph::RenderGraphContext,
-        render_context: &mut bevy::render::renderer::RenderContext,
-        view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
-        world: &World,
-    ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        view_query.sampled_main_texture_view();
+        let sampler = render_device.create_sampler(&SamplerDescriptor::default());
 
-        Ok(())   
+        //We need to create the bind group
+        let layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            entries: &[
+                //This is the screen texture
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+            label: Some("downsize_shader_bind_group_layout"),
+        });
+
+        let shader = world.resource::<AssetServer>().load("pixel.wgsl");
+
+        let low_res_texture = render_device.create_texture(&TextureDescriptor {
+            label: "low_res_texture".into(),
+            size: Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::bevy_default(),
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[TextureFormat::bevy_default()],
+        });
+
+        let low_res_texture = low_res_texture.create_view(&TextureViewDescriptor {
+            label: Some("low_res_texture"),
+            ..TextureViewDescriptor::default()
+        });
+
+        let pipeline_id = world
+            .resource_mut::<PipelineCache>()
+            // This will add the pipeline to the cache and queue it's creation
+            .queue_render_pipeline(RenderPipelineDescriptor {
+                label: Some("downsize_shader_pipeline".into()),
+                layout: vec![layout.clone()],
+                // This will setup a fullscreen triangle for the vertex state
+                vertex: fullscreen_shader_vertex_state(),
+                fragment: Some(FragmentState {
+                    shader,
+                    shader_defs: vec![],
+                    // Make sure this matches the entry point of your shader.
+                    // It can be anything as long as it matches here and in the shader.
+                    entry_point: "fragment".into(),
+                    targets: vec![Some(ColorTargetState {
+                        format: TextureFormat::bevy_default(),
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                // All of the following properties are not important for this effect so just use the default values.
+                // This struct doesn't have the Default trait implemented because not all field can have a default value.
+                primitive: PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+                push_constant_ranges: vec![],
+            });
+
+        PixelShaderPipeline {
+            low_res_texture,
+            target_size: Vec2 { x: 1.0, y: 1.0 },
+            layout,
+            sampler,
+            pipeline_id,
+        }
     }
 }
 
@@ -89,7 +194,7 @@ impl ViewNode for DownsizeShaderNode {
 #[derive(Default)]
 pub struct AsciiShaderNode;
 impl AsciiShaderNode {
-    const NAME : &'static str = "AsciiShaderNode";
+    const NAME: &'static str = "AsciiShaderNode";
 }
 
 impl ViewNode for AsciiShaderNode {
@@ -102,24 +207,36 @@ impl ViewNode for AsciiShaderNode {
         view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        
         // Get the pipeline resource that contains the global data we need
         // to create the render pipeline
-        let post_process_pipeline = world.resource::<AsciiShaderPipeline>();
-        
+        let ascii_pipeline_resource = world.resource::<AsciiShaderPipeline>();
+        let pixel_pipeline_resource = world.resource::<PixelShaderPipeline>();
+
         // The pipeline cache is a cache of all previously created pipelines.
         // It is required to avoid creating a new pipeline each frame,
         // which is expensive due to shader compilation.
         let pipeline_cache = world.resource::<PipelineCache>();
-        
+
         // Get the pipeline from the cache
-        let Some(pipeline) = pipeline_cache.get_render_pipeline(post_process_pipeline.pipeline_id)
+        let Some(ascii_pipeline) =
+            pipeline_cache.get_render_pipeline(ascii_pipeline_resource.pipeline_id)
         else {
             return Ok(());
         };
 
+        let Some(pixel_pipeline) =
+            pipeline_cache.get_render_pipeline(pixel_pipeline_resource.pipeline_id)
+        else {
+            return Ok(());
+        };
+
+        let shader_setttings = world.resource::<AsciiShaderSettings>();
         // Get the settings uniform binding
-        let settings_uniforms = world.resource::<AsciiShaderSettings>().buffer(render_context.render_device(), world.get_resource::<RenderQueue>().unwrap());
+        let settings_uniforms = shader_setttings.buffer(
+            render_context.render_device(),
+            world.get_resource::<RenderQueue>().unwrap(),
+        );
+
         let Some(settings_binding) = settings_uniforms.binding() else {
             return Ok(());
         };
@@ -133,6 +250,13 @@ impl ViewNode for AsciiShaderNode {
         // the current main texture information to be lost.
         let post_process = view_query.post_process_write();
 
+        pixel_pass(
+            render_context,
+            pixel_pipeline,
+            pixel_pipeline_resource,
+            &post_process,
+        );
+
         // The bind_group gets created each frame.
         //
         // Normally, you would create a bind_group in the Queue set,
@@ -142,20 +266,20 @@ impl ViewNode for AsciiShaderNode {
         // is to make sure you get it during the node execution.
         let bind_group = render_context.render_device().create_bind_group(
             "post_process_bind_group",
-            &post_process_pipeline.layout,
+            &ascii_pipeline_resource.layout,
             // It's important for this to match the BindGroupLayout defined in the PostProcessPipeline
             &BindGroupEntries::sequential((
                 // Make sure to use the source view
-                post_process.source,
+                &pixel_pipeline_resource.low_res_texture,
                 // use the font texture
-                &post_process_pipeline.font_texture,
+                &ascii_pipeline_resource.font_texture,
                 // Use the sampler created for the pipeline
-                &post_process_pipeline.sampler,
+                &ascii_pipeline_resource.sampler,
                 // Set the settings binding
                 settings_binding.clone(),
             )),
         );
-        
+
         // Begin the render pass
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("ascii_post_process_pass"),
@@ -171,12 +295,41 @@ impl ViewNode for AsciiShaderNode {
 
         // This is mostly just wgpu boilerplate for drawing a fullscreen triangle,
         // using the pipeline/bind_group created above
-        render_pass.set_render_pipeline(pipeline);
+        render_pass.set_render_pipeline(ascii_pipeline);
         render_pass.set_bind_group(0, &bind_group, &[]);
         render_pass.draw(0..3, 0..1);
 
         Ok(())
     }
+}
+
+fn pixel_pass(
+    render_context: &mut RenderContext,
+    pixel_pipeline: &RenderPipeline,
+    pixel_pipeline_resource: &PixelShaderPipeline,
+    post_process: &PostProcessWrite,
+) {
+    let pixel_bind_group = render_context.render_device().create_bind_group(
+        "pixel_shader_bind_group",
+        &pixel_pipeline_resource.layout,
+        &BindGroupEntries::sequential((post_process.source, &pixel_pipeline_resource.sampler)),
+    );
+
+    let mut pixel_render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
+        label: Some("pixel_shader_render_pass"),
+        color_attachments: &[Some(RenderPassColorAttachment {
+            // We need to specify the post process destination view here
+            // to make sure we write to the appropriate texture.
+            view: &pixel_pipeline_resource.low_res_texture,
+            resolve_target: None,
+            ops: Operations::default(),
+        })],
+        depth_stencil_attachment: None,
+    });
+
+    pixel_render_pass.set_render_pipeline(pixel_pipeline);
+    pixel_render_pass.set_bind_group(0, &pixel_bind_group, &[]);
+    pixel_render_pass.draw(0..3, 0..1);
 }
 
 //=============================================================================
@@ -189,7 +342,6 @@ struct AsciiShaderPipeline {
     layout: BindGroupLayout,
     sampler: Sampler,
     font_texture: TextureView,
-    low_res_texture: Texture,
     pipeline_id: CachedRenderPipelineId,
 }
 
@@ -197,7 +349,7 @@ impl FromWorld for AsciiShaderPipeline {
     fn from_world(world: &mut World) -> Self {
         let queue = world.get_resource::<RenderQueue>().unwrap();
         let render_device = world.resource::<RenderDevice>();
-        
+
         //We need to create the bind group
         let layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[
@@ -244,24 +396,19 @@ impl FromWorld for AsciiShaderPipeline {
             ],
             label: Some("AsciiShaderPipeline::bind_group_layout"),
         });
-        
+
         let sampler = render_device.create_sampler(&SamplerDescriptor::default());
 
-        let shader = world
-            .resource::<AssetServer>()
-            .load("ascii.wgsl");
+        let shader = world.resource::<AssetServer>().load("ascii.wgsl");
 
         let font_texture = Image::from_buffer(
-            include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/assets/",
-                "font.png"
-            )),
+            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/", "font.png")),
             ImageType::Format(ImageFormat::Png),
             CompressedImageFormats::default(),
             true,
-            ImageSampler::nearest()
-        ).expect("There was an error reading an internal texture.");
+            ImageSampler::nearest(),
+        )
+        .expect("There was an error reading an internal texture.");
 
         let texture = render_device.create_texture(&font_texture.texture_descriptor);
         queue.write_texture(
@@ -270,32 +417,25 @@ impl FromWorld for AsciiShaderPipeline {
                 mip_level: 0,
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
-            }, 
-            &font_texture.data, 
+            },
+            &font_texture.data,
             ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * font_texture.width()),
                 rows_per_image: Some(font_texture.height()),
-            }, 
-            Extent3d { width: font_texture.width(), height: font_texture.height(), depth_or_array_layers: 1 }
+            },
+            Extent3d {
+                width: font_texture.width(),
+                height: font_texture.height(),
+                depth_or_array_layers: 1,
+            },
         );
 
-        let font_texture = texture.create_view(&TextureViewDescriptor { 
+        let font_texture = texture.create_view(&TextureViewDescriptor {
             label: "ascii_font_texture".into(),
             ..Default::default()
         });
 
-        let low_res_texture = render_device.create_texture(&TextureDescriptor {
-            label: "low_res_texture".into(),
-            size: Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: texture.format(),
-            usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[TextureFormat::bevy_default()],
-        });
-        
         let pipeline_id = world
             .resource_mut::<PipelineCache>()
             // This will add the pipeline to the cache and queue it's creation
@@ -323,14 +463,57 @@ impl FromWorld for AsciiShaderPipeline {
                 multisample: MultisampleState::default(),
                 push_constant_ranges: vec![],
             });
-        
+
         AsciiShaderPipeline {
             layout,
             sampler,
             font_texture,
-            low_res_texture,
             pipeline_id,
         }
+    }
+}
+
+//=============================================================================
+//             Prepare Step
+//=============================================================================
+
+// Thiw will calculate the target resolution for the effect. If this resolution changes,
+// it will remake the texture.
+pub fn prepare_pixel_shader(
+    mut acsii_shader_settings: ResMut<AsciiShaderSettings>,
+    mut ascii_shader_pipeline: ResMut<PixelShaderPipeline>,
+    mut render_device: ResMut<RenderDevice>,
+    windows: Res<ExtractedWindows>,
+) {
+    let window = windows.windows.get(&windows.primary.unwrap()).unwrap();
+
+    let target_resolution = Vec2::new(
+        (window.physical_width as f32 / acsii_shader_settings.pixels_per_character).floor(),
+        (window.physical_height as f32 / acsii_shader_settings.pixels_per_character).floor(),
+    );
+
+    if target_resolution != ascii_shader_pipeline.target_size {
+        println!("Pixel Texture Changed");
+        ascii_shader_pipeline.target_size = target_resolution;
+        let low_res_texture = render_device.create_texture(&TextureDescriptor {
+            label: "low_res_texture".into(),
+            size: Extent3d {
+                width: target_resolution.x as u32,
+                height: target_resolution.y as u32,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::bevy_default(),
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[TextureFormat::bevy_default()],
+        });
+        ascii_shader_pipeline.low_res_texture =
+            low_res_texture.create_view(&TextureViewDescriptor {
+                label: Some("low_res_texture"),
+                ..TextureViewDescriptor::default()
+            });
     }
 }
 
@@ -341,25 +524,29 @@ impl FromWorld for AsciiShaderPipeline {
 #[derive(Resource, Default, Clone, Copy, ExtractResource, Reflect, InspectorOptions)]
 pub struct AsciiShaderSettings {
     #[inspector(min = 24.0)]
-    pub pixels_per_character: f32,
+    pixels_per_character: f32,
 }
 
 impl AsciiShaderSettings {
-    pub fn buffer(&self, device : &RenderDevice, queue : &RenderQueue) -> DynamicUniformBuffer<AsciiShaderSettingsBuffer> {
+    pub fn buffer(
+        &self,
+        device: &RenderDevice,
+        queue: &RenderQueue,
+    ) -> DynamicUniformBuffer<AsciiShaderSettingsBuffer> {
         let ascii_buffer = AsciiShaderSettingsBuffer {
             pixels_per_character: self.pixels_per_character,
             #[cfg(feature = "webgl2")]
             _webgl2_padding: Vec3::ZERO,
         };
 
-        let mut dyn_buffer : DynamicUniformBuffer<AsciiShaderSettingsBuffer> = DynamicUniformBuffer::default();
+        let mut dyn_buffer: DynamicUniformBuffer<AsciiShaderSettingsBuffer> =
+            DynamicUniformBuffer::default();
         let mut writer = dyn_buffer.get_writer(1, device, queue);
         writer.unwrap().write(&ascii_buffer);
 
         dyn_buffer
     }
 }
-
 
 #[derive(ShaderType)]
 pub struct AsciiShaderSettingsBuffer {
