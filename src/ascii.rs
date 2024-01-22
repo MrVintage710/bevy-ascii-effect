@@ -28,8 +28,9 @@ use bevy::{
             BevyDefault, CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType,
         },
         view::{ExtractedWindows, PostProcessWrite, ViewTarget},
-        Render, RenderApp, RenderSet,
+        Extract, Render, RenderApp, RenderSet,
     },
+    utils::HashMap,
 };
 use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
@@ -38,14 +39,15 @@ pub struct AsciiShaderPlugin;
 //This plugin will add the settings required for the AsciiShader and add the post precess shader to the right spot on the render graph.
 impl Plugin for AsciiShaderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(ExtractResourcePlugin::<AsciiShaderSettings>::default())
+        app
+            // .add_plugins(ExtractResourcePlugin::<AsciiCamera>::default())
             //Debug Stuff
-            .insert_resource(AsciiShaderSettings {
-                pixels_per_character: 24.0,
-                ..Default::default()
-            })
-            .register_type::<AsciiShaderSettings>()
-            .add_plugins(ResourceInspectorPlugin::<AsciiShaderSettings>::default());
+            // .insert_resource(AsciiCamera {
+            //     pixels_per_character: 24.0,
+            //     ..Default::default()
+            // })
+            .register_type::<AsciiCamera>();
+        // .add_plugins(ResourceInspectorPlugin::<AsciiCamera>::default());
 
         // We need to get the render app from the main app
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -57,6 +59,7 @@ impl Plugin for AsciiShaderPlugin {
                 Render,
                 prepare_pixel_shader.in_set(RenderSet::PrepareResources),
             )
+            .add_systems(ExtractSchedule, extract_camera)
             .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
                 core_3d::graph::NAME,
                 AsciiShaderNode::NAME,
@@ -89,7 +92,7 @@ impl Plugin for AsciiShaderPlugin {
 
 #[derive(Resource)]
 pub struct PixelShaderPipeline {
-    low_res_texture: TextureView,
+    low_res_textures: HashMap<Entity, TextureView>,
     target_size: Vec2,
     layout: BindGroupLayout,
     sampler: Sampler,
@@ -129,25 +132,25 @@ impl FromWorld for PixelShaderPipeline {
 
         let shader = world.resource::<AssetServer>().load("pixel.wgsl");
 
-        let low_res_texture = render_device.create_texture(&TextureDescriptor {
-            label: "low_res_texture".into(),
-            size: Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::bevy_default(),
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[TextureFormat::bevy_default()],
-        });
+        // let low_res_texture = render_device.create_texture(&TextureDescriptor {
+        //     label: "low_res_texture".into(),
+        //     size: Extent3d {
+        //         width: 1,
+        //         height: 1,
+        //         depth_or_array_layers: 1,
+        //     },
+        //     mip_level_count: 1,
+        //     sample_count: 1,
+        //     dimension: TextureDimension::D2,
+        //     format: TextureFormat::bevy_default(),
+        //     usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
+        //     view_formats: &[TextureFormat::bevy_default()],
+        // });
 
-        let low_res_texture = low_res_texture.create_view(&TextureViewDescriptor {
-            label: Some("low_res_texture"),
-            ..TextureViewDescriptor::default()
-        });
+        // let low_res_texture = low_res_texture.create_view(&TextureViewDescriptor {
+        //     label: Some("low_res_texture"),
+        //     ..TextureViewDescriptor::default()
+        // });
 
         let pipeline_id = world
             .resource_mut::<PipelineCache>()
@@ -178,7 +181,7 @@ impl FromWorld for PixelShaderPipeline {
             });
 
         PixelShaderPipeline {
-            low_res_texture,
+            low_res_textures: HashMap::new(),
             target_size: Vec2 { x: 1.0, y: 1.0 },
             layout,
             sampler,
@@ -198,7 +201,7 @@ impl AsciiShaderNode {
 }
 
 impl ViewNode for AsciiShaderNode {
-    type ViewQuery = &'static ViewTarget;
+    type ViewQuery = (Entity, &'static ViewTarget, &'static AsciiCamera);
 
     fn run(
         &self,
@@ -207,6 +210,8 @@ impl ViewNode for AsciiShaderNode {
         view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
+        let (entity, view_target, ascii_camera) = view_query;
+
         // Get the pipeline resource that contains the global data we need
         // to create the render pipeline
         let ascii_pipeline_resource = world.resource::<AsciiShaderPipeline>();
@@ -230,12 +235,16 @@ impl ViewNode for AsciiShaderNode {
             return Ok(());
         };
 
-        let shader_setttings = world.resource::<AsciiShaderSettings>();
+        // let acsii_camera = world.resource::<AsciiCamera>();
         // Get the settings uniform binding
-        let settings_uniforms = shader_setttings.buffer(
+        let settings_uniforms = ascii_camera.buffer(
             render_context.render_device(),
             world.get_resource::<RenderQueue>().unwrap(),
         );
+
+        let Some(low_res_texture) = pixel_pipeline_resource.low_res_textures.get(&entity) else {
+            return Ok(());
+        };
 
         let Some(settings_binding) = settings_uniforms.binding() else {
             return Ok(());
@@ -248,9 +257,10 @@ impl ViewNode for AsciiShaderNode {
         // [`ViewTarget`] will internally flip the [`ViewTarget`]'s main
         // texture to the `destination` texture. Failing to do so will cause
         // the current main texture information to be lost.
-        let post_process = view_query.post_process_write();
+        let post_process = view_target.post_process_write();
 
         pixel_pass(
+            low_res_texture,
             render_context,
             pixel_pipeline,
             pixel_pipeline_resource,
@@ -270,7 +280,7 @@ impl ViewNode for AsciiShaderNode {
             // It's important for this to match the BindGroupLayout defined in the PostProcessPipeline
             &BindGroupEntries::sequential((
                 // Make sure to use the source view
-                &pixel_pipeline_resource.low_res_texture,
+                low_res_texture,
                 // use the font texture
                 &ascii_pipeline_resource.font_texture,
                 // Use the sampler created for the pipeline
@@ -304,6 +314,7 @@ impl ViewNode for AsciiShaderNode {
 }
 
 fn pixel_pass(
+    low_res_texture: &TextureView,
     render_context: &mut RenderContext,
     pixel_pipeline: &RenderPipeline,
     pixel_pipeline_resource: &PixelShaderPipeline,
@@ -320,7 +331,7 @@ fn pixel_pass(
         color_attachments: &[Some(RenderPassColorAttachment {
             // We need to specify the post process destination view here
             // to make sure we write to the appropriate texture.
-            view: &pixel_pipeline_resource.low_res_texture,
+            view: low_res_texture,
             resolve_target: None,
             ops: Operations::default(),
         })],
@@ -474,46 +485,69 @@ impl FromWorld for AsciiShaderPipeline {
 }
 
 //=============================================================================
+//             Extract Step
+//=============================================================================
+
+pub fn extract_camera(
+    mut commands: Commands,
+    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera)>>,
+) {
+    for (entity, camera, pixel_camera) in &cameras {
+        if camera.is_active {
+            commands.get_or_spawn(entity).insert(pixel_camera.clone());
+        }
+    }
+}
+
+//=============================================================================
 //             Prepare Step
 //=============================================================================
 
 // Thiw will calculate the target resolution for the effect. If this resolution changes,
 // it will remake the texture.
 pub fn prepare_pixel_shader(
-    mut acsii_shader_settings: ResMut<AsciiShaderSettings>,
-    mut ascii_shader_pipeline: ResMut<PixelShaderPipeline>,
+    mut acsii_cameras: Query<(Entity, &AsciiCamera)>,
+    mut pixel_shader_pipeline: ResMut<PixelShaderPipeline>,
     mut render_device: ResMut<RenderDevice>,
     windows: Res<ExtractedWindows>,
 ) {
     let window = windows.windows.get(&windows.primary.unwrap()).unwrap();
 
-    let target_resolution = Vec2::new(
-        (window.physical_width as f32 / acsii_shader_settings.pixels_per_character).floor(),
-        (window.physical_height as f32 / acsii_shader_settings.pixels_per_character).floor(),
-    );
+    for (entity, ascii_camera) in acsii_cameras.iter() {
+        let target_resolution = Vec2::new(
+            (window.physical_width as f32 / ascii_camera.pixels_per_character).floor(),
+            (window.physical_height as f32 / ascii_camera.pixels_per_character).floor(),
+        );
 
-    if target_resolution != ascii_shader_pipeline.target_size {
-        println!("Pixel Texture Changed");
-        ascii_shader_pipeline.target_size = target_resolution;
-        let low_res_texture = render_device.create_texture(&TextureDescriptor {
-            label: "low_res_texture".into(),
-            size: Extent3d {
-                width: target_resolution.x as u32,
-                height: target_resolution.y as u32,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::bevy_default(),
-            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[TextureFormat::bevy_default()],
-        });
-        ascii_shader_pipeline.low_res_texture =
-            low_res_texture.create_view(&TextureViewDescriptor {
-                label: Some("low_res_texture"),
-                ..TextureViewDescriptor::default()
-            });
+        if target_resolution != pixel_shader_pipeline.target_size
+            || !pixel_shader_pipeline.low_res_textures.contains_key(&entity)
+        {
+            println!("Pixel Texture Changed");
+            pixel_shader_pipeline.target_size = target_resolution;
+            let low_res_texture = render_device
+                .create_texture(&TextureDescriptor {
+                    label: "low_res_texture".into(),
+                    size: Extent3d {
+                        width: target_resolution.x as u32,
+                        height: target_resolution.y as u32,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: TextureDimension::D2,
+                    format: TextureFormat::bevy_default(),
+                    usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[TextureFormat::bevy_default()],
+                })
+                .create_view(&TextureViewDescriptor {
+                    label: Some("low_res_texture"),
+                    ..TextureViewDescriptor::default()
+                });
+
+            pixel_shader_pipeline
+                .low_res_textures
+                .insert(entity, low_res_texture);
+        }
     }
 }
 
@@ -521,13 +555,21 @@ pub fn prepare_pixel_shader(
 //             Shader Settings
 //=============================================================================
 
-#[derive(Resource, Default, Clone, Copy, ExtractResource, Reflect, InspectorOptions)]
-pub struct AsciiShaderSettings {
+#[derive(Component, Clone, Copy, Reflect, InspectorOptions)]
+pub struct AsciiCamera {
     #[inspector(min = 24.0)]
     pixels_per_character: f32,
 }
 
-impl AsciiShaderSettings {
+impl Default for AsciiCamera {
+    fn default() -> Self {
+        AsciiCamera {
+            pixels_per_character: 24.0,
+        }
+    }
+}
+
+impl AsciiCamera {
     pub fn buffer(
         &self,
         device: &RenderDevice,
