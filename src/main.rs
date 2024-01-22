@@ -28,7 +28,9 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
             ..default()
         },
-        AsciiCamera::default(),
+        AsciiCamera {
+            pixels_per_character: 48.0,
+        },
         PanOrbitCamera::default(),
     ));
 

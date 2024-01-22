@@ -522,7 +522,6 @@ pub fn prepare_pixel_shader(
         if target_resolution != pixel_shader_pipeline.target_size
             || !pixel_shader_pipeline.low_res_textures.contains_key(&entity)
         {
-            println!("Pixel Texture Changed");
             pixel_shader_pipeline.target_size = target_resolution;
             let low_res_texture = render_device
                 .create_texture(&TextureDescriptor {
@@ -558,7 +557,7 @@ pub fn prepare_pixel_shader(
 #[derive(Component, Clone, Copy, Reflect, InspectorOptions)]
 pub struct AsciiCamera {
     #[inspector(min = 24.0)]
-    pixels_per_character: f32,
+    pub pixels_per_character: f32,
 }
 
 impl Default for AsciiCamera {

@@ -35,34 +35,39 @@ struct PostProcessSettings {
 @group(0) @binding(3) var<uniform> settings: PostProcessSettings;
 
 const TEXTURE_RESOLUTION : vec2<f32> = vec2<f32>(384.0, 192.0);
-const TERMINAL_RESOLUTION : vec2<f32> = vec2<f32>(60.0, 60.0);
 const CHARACTER_DIMENSIONS = vec2<f32>(24.0, 24.0);
-
-const PIXELS_PER_CHARACTER = 48.0;
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
-    let CHARACTER_SIZE_UV = (CHARACTER_DIMENSIONS) / TEXTURE_RESOLUTION;
 
     let index = 65.0;
     let character_uv = vec2<f32>(
         ((index % 16.0) * CHARACTER_DIMENSIONS.x) / TEXTURE_RESOLUTION.x, 
         (floor(index / 16.0) * CHARACTER_DIMENSIONS.y) / TEXTURE_RESOLUTION.y
     );
+    let character_size_uv = CHARACTER_DIMENSIONS / TEXTURE_RESOLUTION;
 
     let output_dims = vec2<f32>(textureDimensions(screen_texture));
-    let terminal_dims = vec2<f32>(floor(output_dims.x / settings.pixels_per_character), floor(output_dims.y / settings.pixels_per_character));
-    let character_dims = (output_dims / terminal_dims) / output_dims;
+    let screen_pixel_uv = vec2<f32>(1.0, 1.0) / output_dims;
 
-    let fragment_value = (in.uv % character_dims) / character_dims;
+    // This value is 0.0 - 1.0 depending on how far along a pixel we are
+    let inner_pixel_uv = (in.uv % screen_pixel_uv) / screen_pixel_uv;
 
-    let uv = character_uv + (fragment_value * CHARACTER_SIZE_UV);
-    let color = vec4<f32>(textureSample(font_texture, texture_sampler, uv));
+    let font_uv = character_uv + (character_size_uv * inner_pixel_uv);
+    
+    let font_color = textureSample(font_texture, texture_sampler, font_uv);
+    let screen_color = textureSample(screen_texture, texture_sampler, in.uv);
+
+    if (font_color.x == 1.0) {
+        return screen_color;
+    } else {
+        return font_color;
+    }
 
     //let uv = in.uv * vec2<f32>(0.0625, 0.125);
     // let color = vec4<f32>(in.uv.x * 0.5, 0.0, 0.0, 255.0);
     // let color = vec4<f32>(textureSample(font_texture, texture_sampler, uv));
 
     // return color;
-    return textureSample(screen_texture, texture_sampler, in.uv);
+    // return textureSample(screen_texture, texture_sampler, in.uv);
 }
