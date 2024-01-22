@@ -29,7 +29,7 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         AsciiCamera {
-            pixels_per_character: 48.0,
+            pixels_per_character: 24.0,
         },
         PanOrbitCamera::default(),
     ));
