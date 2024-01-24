@@ -1,4 +1,5 @@
 mod ascii;
+mod ascii_renderer;
 
 use ascii::{AsciiCamera, AsciiShaderPlugin};
 use bevy::{
