@@ -1,87 +1,3 @@
-use bevy::{
-    app::Plugin,
-    asset::AssetServer,
-    core_pipeline::{
-        core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state,
-        prepass::ViewPrepassTextures, CorePipelinePlugin,
-    },
-    ecs::world::FromWorld,
-    prelude::*,
-    render::{
-        self,
-        extract_component::{ComponentUniforms, ExtractComponentPlugin, UniformComponentPlugin},
-        extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner},
-        render_phase::CachedRenderPipelinePhaseItem,
-        render_resource::{
-            encase::internal::WriteInto, BindGroupEntries, BindGroupLayout,
-            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, CachedRenderPipelineId,
-            ColorTargetState, ColorWrites, DynamicUniformBuffer, Extent3d, FragmentState,
-            ImageCopyTexture, ImageCopyTextureBase, ImageDataLayout, MultisampleState, Operations,
-            Origin3d, PipelineCache, PrimitiveState, RenderPassColorAttachment,
-            RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler,
-            SamplerBindingType, SamplerDescriptor, ShaderStages, ShaderType, Texture,
-            TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
-            TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
-        },
-        renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{
-            BevyDefault, CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType,
-        },
-        view::{ExtractedWindows, PostProcessWrite, ViewTarget},
-        Extract, Render, RenderApp, RenderSet,
-    },
-    utils::HashMap,
-};
-use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
-
-use crate::ascii::{AsciiCamera, AsciiShaderSettingsBuffer};
-
-//=============================================================================
-//             Ascii Shader Node
-//=============================================================================
-
-pub(crate) struct AsciiRendererPlugin;
-
-impl Plugin for AsciiRendererPlugin {
-    fn build(&self, app: &mut App) {
-        // We need to get the render app from the main app
-        let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            .add_systems(
-                Render,
-                prepare_pixel_shader.in_set(RenderSet::PrepareResources),
-            )
-            .add_systems(ExtractSchedule, extract_camera)
-            .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
-                core_3d::graph::NAME,
-                AsciiShaderNode::NAME,
-            )
-            .add_render_graph_edges(
-                core_3d::graph::NAME,
-                &[
-                    core_3d::graph::node::TONEMAPPING,
-                    AsciiShaderNode::NAME,
-                    core_3d::graph::node::END_MAIN_PASS_POST_PROCESSING,
-                ],
-            );
-    }
-
-    fn finish(&self, app: &mut App) {
-        let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-
-        render_app
-            // Initialize the pipeline
-            .init_resource::<AsciiShaderPipeline>()
-            .init_resource::<PixelShaderPipeline>();
-    }
-}
-
 //=============================================================================
 //             Ascii Shader Node
 //=============================================================================
@@ -93,12 +9,7 @@ impl AsciiShaderNode {
 }
 
 impl ViewNode for AsciiShaderNode {
-    type ViewQuery = (
-        Entity,
-        &'static ViewTarget,
-        &'static AsciiCamera,
-        &'static ViewPrepassTextures,
-    );
+    type ViewQuery = (Entity, &'static ViewTarget, &'static AsciiCamera);
 
     fn run(
         &self,
@@ -107,18 +18,7 @@ impl ViewNode for AsciiShaderNode {
         view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        let (entity, view_target, ascii_camera, prepass_textures) = view_query;
-
-        let Some(depth_texture) = &prepass_textures.depth else {
-            return Ok(());
-        };
-
-        // let depth_texture_view = depth_texture.texture.create_view(&TextureViewDescriptor {
-        //     label: Some("depth_texture_view"),
-        //     format: Some(TextureFormat::Depth32Float),
-        //     dimension: Some(TextureViewDimension::D2),
-        //     ..Default::default()
-        // });
+        let (entity, view_target, ascii_camera) = view_query;
 
         // Get the pipeline resource that contains the global data we need
         // to create the render pipeline
@@ -191,8 +91,6 @@ impl ViewNode for AsciiShaderNode {
                 low_res_texture,
                 // use the font texture
                 &ascii_pipeline_resource.font_texture,
-                //The Depth Texture
-                &depth_texture.default_view,
                 // Use the sampler created for the pipeline
                 &ascii_pipeline_resource.sampler,
                 // Set the settings binding
@@ -296,33 +194,16 @@ impl FromWorld for AsciiShaderPipeline {
                     },
                     count: None,
                 },
-                //This is the depth texture that is passed in.
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Depth,
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: true,
-                    },
-                    count: None,
-                },
                 // The sampler that will be used to sample the screen texture
                 BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 2,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
                 },
-                // BindGroupLayoutEntry {
-                //     binding: 4,
-                //     visibility: ShaderStages::FRAGMENT,
-                //     ty: BindingType::Sampler(SamplerBindingType::NonFiltering),
-                //     count: None,
-                // },
                 // The settings uniform that will control the effect
                 BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 3,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: bevy::render::render_resource::BufferBindingType::Uniform,
@@ -398,11 +279,6 @@ impl FromWorld for AsciiShaderPipeline {
                 // This struct doesn't have the Default trait implemented because not all field can have a default value.
                 primitive: PrimitiveState::default(),
                 depth_stencil: None,
-                // multisample: MultisampleState {
-                //     count: 4,
-                //     mask: !0,
-                //     alpha_to_coverage_enabled: false,
-                // },
                 multisample: MultisampleState::default(),
                 push_constant_ranges: vec![],
             });
@@ -461,6 +337,26 @@ impl FromWorld for PixelShaderPipeline {
         });
 
         let shader = world.resource::<AssetServer>().load("pixel.wgsl");
+
+        // let low_res_texture = render_device.create_texture(&TextureDescriptor {
+        //     label: "low_res_texture".into(),
+        //     size: Extent3d {
+        //         width: 1,
+        //         height: 1,
+        //         depth_or_array_layers: 1,
+        //     },
+        //     mip_level_count: 1,
+        //     sample_count: 1,
+        //     dimension: TextureDimension::D2,
+        //     format: TextureFormat::bevy_default(),
+        //     usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
+        //     view_formats: &[TextureFormat::bevy_default()],
+        // });
+
+        // let low_res_texture = low_res_texture.create_view(&TextureViewDescriptor {
+        //     label: Some("low_res_texture"),
+        //     ..TextureViewDescriptor::default()
+        // });
 
         let pipeline_id = world
             .resource_mut::<PipelineCache>()

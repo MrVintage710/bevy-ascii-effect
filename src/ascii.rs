@@ -1,36 +1,11 @@
 use bevy::{
     app::Plugin,
-    asset::AssetServer,
-    core_pipeline::{
-        core_3d, fullscreen_vertex_shader::fullscreen_shader_vertex_state, CorePipelinePlugin,
-    },
-    ecs::world::FromWorld,
+    core_pipeline::prepass::DepthPrepass,
     prelude::*,
     render::{
-        self,
-        extract_component::{ComponentUniforms, ExtractComponentPlugin, UniformComponentPlugin},
-        extract_resource::{ExtractResource, ExtractResourcePlugin},
-        render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner},
-        render_phase::CachedRenderPipelinePhaseItem,
-        render_resource::{
-            encase::internal::WriteInto, BindGroupEntries, BindGroupLayout,
-            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, CachedRenderPipelineId,
-            ColorTargetState, ColorWrites, DynamicUniformBuffer, Extent3d, FragmentState,
-            ImageCopyTexture, ImageCopyTextureBase, ImageDataLayout, MultisampleState, Operations,
-            Origin3d, PipelineCache, PrimitiveState, RenderPassColorAttachment,
-            RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler,
-            SamplerBindingType, SamplerDescriptor, ShaderStages, ShaderType, Texture,
-            TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
-            TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
-        },
-        renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::{
-            BevyDefault, CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType,
-        },
-        view::{ExtractedWindows, PostProcessWrite, ViewTarget},
-        Extract, Render, RenderApp, RenderSet,
+        render_resource::{DynamicUniformBuffer, ShaderType},
+        renderer::{RenderDevice, RenderQueue},
     },
-    utils::HashMap,
 };
 use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
@@ -47,6 +22,27 @@ impl Plugin for AsciiShaderPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<AsciiCamera>()
             .add_plugins(AsciiRendererPlugin);
+    }
+}
+
+//=============================================================================
+//             Ascii Camera Bundle
+//=============================================================================
+
+#[derive(Bundle)]
+pub struct AsciiCameraBundle {
+    pub camera_bundle: Camera3dBundle,
+    pub ascii_cam: AsciiCamera,
+    pub depth_prepass: DepthPrepass,
+}
+
+impl Default for AsciiCameraBundle {
+    fn default() -> Self {
+        AsciiCameraBundle {
+            camera_bundle: Camera3dBundle::default(),
+            depth_prepass: DepthPrepass,
+            ascii_cam: AsciiCamera::default(),
+        }
     }
 }
 

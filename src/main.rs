@@ -1,7 +1,7 @@
 mod ascii;
 mod ascii_renderer;
 
-use ascii::{AsciiCamera, AsciiShaderPlugin};
+use ascii::{AsciiCameraBundle, AsciiShaderPlugin};
 use bevy::{
     diagnostic::FrameTimeDiagnosticsPlugin,
     pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
@@ -24,16 +24,9 @@ fn main() {
 }
 
 pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
-            ..default()
-        },
-        AsciiCamera {
-            pixels_per_character: 24.0,
-        },
-        PanOrbitCamera::default(),
-    ));
+    commands
+        .spawn(AsciiCameraBundle::default())
+        .insert(PanOrbitCamera::default());
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {

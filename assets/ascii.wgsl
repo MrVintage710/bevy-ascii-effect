@@ -2,7 +2,8 @@
 
 @group(0) @binding(0) var screen_texture: texture_2d<f32>;
 @group(0) @binding(1) var font_texture: texture_2d<f32>;
-@group(0) @binding(2) var texture_sampler: sampler;
+@group(0) @binding(2) var depth_texture: texture_depth_multisampled_2d;
+@group(0) @binding(3) var texture_sampler: sampler;
 
 struct PostProcessSettings {
     pixels_per_character: f32,
@@ -12,7 +13,7 @@ struct PostProcessSettings {
 #endif
 }
 
-@group(0) @binding(3) var<uniform> settings: PostProcessSettings;
+@group(0) @binding(4) var<uniform> settings: PostProcessSettings;
 
 const TEXTURE_RESOLUTION : vec2<f32> = vec2<f32>(384.0, 192.0);
 const CHARACTER_DIMENSIONS = vec2<f32>(24.0, 24.0);
@@ -20,10 +21,18 @@ const CHARACTER_DIMENSIONS = vec2<f32>(24.0, 24.0);
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
+    let output_dims = vec2<f32>(textureDimensions(screen_texture));
+    
     let screen_color = textureSample(screen_texture, texture_sampler, in.uv);
+
+    let current_pixel = vec2<u32>(
+        u32(output_dims.x * in.uv.x),
+        u32(output_dims.y * in.uv.y)
+    );
+    let depth = textureLoad(depth_texture, current_pixel, 0);
     
     var index = 0.0;
-    if (screen_color.w < 0.05) {
+    if (depth < 0.05) {
         index = 86.0;
     } else {
         index = 102.0;
@@ -34,7 +43,6 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     );
     let character_size_uv = CHARACTER_DIMENSIONS / TEXTURE_RESOLUTION;
 
-    let output_dims = vec2<f32>(textureDimensions(screen_texture));
     let screen_pixel_uv = vec2<f32>(1.0, 1.0) / output_dims;
 
     // This value is 0.0 - 1.0 depending on how far along a pixel we are
