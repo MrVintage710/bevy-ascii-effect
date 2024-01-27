@@ -26,17 +26,25 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let screen_color = textureSample(screen_texture, texture_sampler, in.uv);
 
     let current_pixel = vec2<u32>(
-        u32(output_dims.x * in.uv.x),
-        u32(output_dims.y * in.uv.y)
+        u32(floor(settings.pixels_per_character * (floor(in.position.x / settings.pixels_per_character)))),
+        u32(floor(settings.pixels_per_character * (floor(in.position.y / settings.pixels_per_character))))
     );
-    let depth = textureLoad(depth_texture, current_pixel, 0);
+    
+    let depth = textureLoad(depth_texture, current_pixel, 2);
     
     var index = 0.0;
-    if (depth < 0.05) {
-        index = 86.0;
-    } else {
+    if (depth > 0.4) {
         index = 102.0;
+    } else if(depth > 0.05) {
+        index = 86.0;
+    } else if(depth > 0.03) {
+        index = 0.0;
+    } else if (depth > 0.01) {
+        index = 58.0;
+    } else {
+        index = 32.0;
     }
+    
     let character_uv = vec2<f32>(
         ((index % 16.0) * CHARACTER_DIMENSIONS.x) / TEXTURE_RESOLUTION.x, 
         (floor(index / 16.0) * CHARACTER_DIMENSIONS.y) / TEXTURE_RESOLUTION.y
