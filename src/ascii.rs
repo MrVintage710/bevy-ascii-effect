@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
-use crate::ascii_renderer::AsciiRendererPlugin;
+use crate::render::AsciiRendererPlugin;
 
 //=============================================================================
 //             Acsii Shader Plugin

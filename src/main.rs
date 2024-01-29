@@ -1,5 +1,5 @@
 mod ascii;
-mod ascii_renderer;
+pub(crate) mod render;
 
 use ascii::{AsciiCameraBundle, AsciiShaderPlugin};
 use bevy::{
