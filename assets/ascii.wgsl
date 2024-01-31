@@ -2,7 +2,7 @@
 
 @group(0) @binding(0) var screen_texture: texture_2d<f32>;
 @group(0) @binding(1) var font_texture: texture_2d<f32>;
-@group(0) @binding(2) var depth_texture: texture_2d<f32>;
+@group(0) @binding(2) var overlay_texture: texture_2d<f32>;
 @group(0) @binding(3) var texture_sampler: sampler;
 
 struct PostProcessSettings {
@@ -24,7 +24,10 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let output_dims = vec2<f32>(textureDimensions(screen_texture));
     
     let screen_color = textureSample(screen_texture, texture_sampler, in.uv);
+    let overlay_info = textureSample(overlay_texture, texture_sampler, in.uv);
 
+    let o_index = overlay_info.x;
+    
     let current_pixel = vec2<u32>(
         u32(floor(settings.pixels_per_character * (floor(in.position.x / settings.pixels_per_character)))),
         u32(floor(settings.pixels_per_character * (floor(in.position.y / settings.pixels_per_character))))
@@ -55,14 +58,16 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
     let screen_pixel_uv = vec2<f32>(1.0, 1.0) / output_dims;
 
-    // This value is 0.0 - 1.0 depending on how far along a pixel we areatomicStore
+    // This value is 0.0 - 1.0 depending on how far along a pixel we are
     let inner_pixel_uv = (in.uv % screen_pixel_uv) / screen_pixel_uv;
 
     let font_uv = character_uv + (character_size_uv * inner_pixel_uv);
     
     let font_color = textureSample(font_texture, texture_sampler, font_uv);
-
-    if (font_color.x == 1.0) {
+    
+    if(o_index == 0.0) {
+        return vec4<f32>(1.0, 0.0, 0.0, 0.0);
+    } else if (font_color.x == 1.0) {
         return screen_color;
     } else {
         return font_color;
