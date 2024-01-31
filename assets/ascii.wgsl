@@ -2,7 +2,7 @@
 
 @group(0) @binding(0) var screen_texture: texture_2d<f32>;
 @group(0) @binding(1) var font_texture: texture_2d<f32>;
-@group(0) @binding(2) var depth_texture: texture_depth_multisampled_2d;
+@group(0) @binding(2) var depth_texture: texture_2d<f32>;
 @group(0) @binding(3) var texture_sampler: sampler;
 
 struct PostProcessSettings {
@@ -30,21 +30,23 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         u32(floor(settings.pixels_per_character * (floor(in.position.y / settings.pixels_per_character))))
     );
     
-    let depth = textureLoad(depth_texture, current_pixel, 2);
-    
-    var index = 0.0;
-    if (depth > 0.4) {
-        index = 102.0;
-    } else if(depth > 0.05) {
-        index = 86.0;
-    } else if(depth > 0.03) {
-        index = 0.0;
-    } else if (depth > 0.01) {
-        index = 58.0;
-    } else {
-        index = 32.0;
-    }
-    
+    let value = max(screen_color.x, max(screen_color.y, screen_color.z));
+
+    var indices = array<f32, 10>(
+        46.0,
+        58.0,
+        45.0,
+        43.0,
+        42.0,
+        88.0,
+        87.0,
+        81.0,
+        86.0,
+        102.0
+    );
+
+    let index = indices[i32(floor(value / 0.1))];
+      
     let character_uv = vec2<f32>(
         ((index % 16.0) * CHARACTER_DIMENSIONS.x) / TEXTURE_RESOLUTION.x, 
         (floor(index / 16.0) * CHARACTER_DIMENSIONS.y) / TEXTURE_RESOLUTION.y
@@ -53,7 +55,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
     let screen_pixel_uv = vec2<f32>(1.0, 1.0) / output_dims;
 
-    // This value is 0.0 - 1.0 depending on how far along a pixel we are
+    // This value is 0.0 - 1.0 depending on how far along a pixel we areatomicStore
     let inner_pixel_uv = (in.uv % screen_pixel_uv) / screen_pixel_uv;
 
     let font_uv = character_uv + (character_size_uv * inner_pixel_uv);
@@ -65,11 +67,4 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     } else {
         return font_color;
     }
-
-    //let uv = in.uv * vec2<f32>(0.0625, 0.125);
-    // let color = vec4<f32>(in.uv.x * 0.5, 0.0, 0.0, 255.0);
-    // let color = vec4<f32>(textureSample(font_texture, texture_sampler, uv));
-
-    // return color;
-    // return textureSample(screen_texture, texture_sampler, in.uv);
 }

@@ -14,7 +14,7 @@ use bevy::{
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
     },
-    utils::HashMap,
+    utils::hashbrown::HashMap,
 };
 
 //=============================================================================

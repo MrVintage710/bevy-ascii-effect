@@ -1,5 +1,7 @@
 mod ascii;
+mod dither;
 mod pixel;
+mod ui;
 
 use bevy::{
     app::Plugin,
@@ -19,6 +21,7 @@ use bevy::{
         Extract, Render, RenderApp, RenderSet,
     },
 };
+use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
 use crate::ascii::{AsciiCamera, AsciiShaderSettingsBuffer};
 
@@ -40,7 +43,7 @@ impl Plugin for AsciiRendererPlugin {
         render_app
             .add_systems(
                 Render,
-                prepare_pixel_shader.in_set(RenderSet::PrepareResources),
+                prepare_shader_textures.in_set(RenderSet::PrepareResources),
             )
             .add_systems(ExtractSchedule, extract_camera)
             .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
@@ -80,12 +83,7 @@ impl AsciiShaderNode {
 }
 
 impl ViewNode for AsciiShaderNode {
-    type ViewQuery = (
-        Entity,
-        &'static ViewTarget,
-        &'static AsciiCamera,
-        &'static ViewPrepassTextures,
-    );
+    type ViewQuery = (Entity, &'static ViewTarget, &'static AsciiCamera);
 
     fn run(
         &self,
@@ -94,18 +92,7 @@ impl ViewNode for AsciiShaderNode {
         view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), bevy::render::render_graph::NodeRunError> {
-        let (entity, view_target, ascii_camera, prepass_textures) = view_query;
-
-        let Some(depth_texture) = &prepass_textures.depth else {
-            return Ok(());
-        };
-
-        // let depth_texture_view = depth_texture.texture.create_view(&TextureViewDescriptor {
-        //     label: Some("depth_texture_view"),
-        //     format: Some(TextureFormat::Depth32Float),
-        //     dimension: Some(TextureViewDimension::D2),
-        //     ..Default::default()
-        // });
+        let (entity, view_target, ascii_camera) = view_query;
 
         // Get the pipeline resource that contains the global data we need
         // to create the render pipeline
@@ -138,6 +125,10 @@ impl ViewNode for AsciiShaderNode {
         );
 
         let Some(low_res_texture) = pixel_pipeline_resource.low_res_textures.get(&entity) else {
+            return Ok(());
+        };
+
+        let Some(overlay_texture) = ascii_pipeline_resource.overlay_textures.get(&entity) else {
             return Ok(());
         };
 
@@ -178,8 +169,8 @@ impl ViewNode for AsciiShaderNode {
                 low_res_texture,
                 // use the font texture
                 &ascii_pipeline_resource.font_texture,
-                //The Depth Texture
-                &depth_texture.default_view,
+                //The overlay texture
+                overlay_texture,
                 // Use the sampler created for the pipeline
                 &ascii_pipeline_resource.sampler,
                 // Set the settings binding
@@ -249,7 +240,7 @@ pub fn extract_camera(
     cameras: Extract<Query<(Entity, &Camera, &AsciiCamera)>>,
 ) {
     for (entity, camera, pixel_camera) in &cameras {
-        if camera.is_active {
+        if camera.is_active && pixel_camera.should_render {
             commands.get_or_spawn(entity).insert(pixel_camera.clone());
         }
     }
@@ -261,8 +252,9 @@ pub fn extract_camera(
 
 // Thiw will calculate the target resolution for the effect. If this resolution changes,
 // it will remake the texture.
-pub fn prepare_pixel_shader(
+pub fn prepare_shader_textures(
     mut pixel_shader_pipeline: ResMut<PixelShaderPipeline>,
+    mut ascii_shader_pipeline: ResMut<AsciiShaderPipeline>,
     acsii_cameras: Query<(Entity, &AsciiCamera)>,
     render_device: ResMut<RenderDevice>,
     windows: Res<ExtractedWindows>,
@@ -275,6 +267,7 @@ pub fn prepare_pixel_shader(
             (window.physical_height as f32 / ascii_camera.pixels_per_character).floor(),
         );
 
+        //First check to see if the render texture for the pixel shader needs updating.
         if target_resolution != pixel_shader_pipeline.target_size
             || !pixel_shader_pipeline.low_res_textures.contains_key(&entity)
         {
@@ -302,6 +295,36 @@ pub fn prepare_pixel_shader(
             pixel_shader_pipeline
                 .low_res_textures
                 .insert(entity, low_res_texture);
+        }
+
+        //Then do the same thing with the overlay shaders
+        if target_resolution != ascii_shader_pipeline.target_size
+            || !ascii_shader_pipeline.overlay_textures.contains_key(&entity)
+        {
+            ascii_shader_pipeline.target_size = target_resolution;
+            let overlay_texture = render_device
+                .create_texture(&TextureDescriptor {
+                    label: "overlay_texture".into(),
+                    size: Extent3d {
+                        width: target_resolution.x as u32,
+                        height: target_resolution.y as u32,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: TextureDimension::D2,
+                    format: TextureFormat::bevy_default(),
+                    usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[TextureFormat::bevy_default()],
+                })
+                .create_view(&TextureViewDescriptor {
+                    label: Some("overlay_texture"),
+                    ..TextureViewDescriptor::default()
+                });
+
+            ascii_shader_pipeline
+                .overlay_textures
+                .insert(entity, overlay_texture);
         }
     }
 }

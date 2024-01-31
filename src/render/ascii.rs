@@ -19,6 +19,7 @@ use bevy::{
             BevyDefault, CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType,
         },
     },
+    utils::hashbrown::HashMap,
 };
 
 //=============================================================================
@@ -28,6 +29,8 @@ use bevy::{
 // This contains global data used by the render pipeline. This will be created once on startup.
 #[derive(Resource)]
 pub(crate) struct AsciiShaderPipeline {
+    pub overlay_textures: HashMap<Entity, TextureView>,
+    pub target_size: Vec2,
     pub layout: BindGroupLayout,
     pub sampler: Sampler,
     pub font_texture: TextureView,
@@ -69,9 +72,9 @@ impl FromWorld for AsciiShaderPipeline {
                     binding: 2,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Depth,
+                        sample_type: TextureSampleType::Float { filterable: true },
                         view_dimension: TextureViewDimension::D2,
-                        multisampled: true,
+                        multisampled: false,
                     },
                     count: None,
                 },
@@ -176,6 +179,8 @@ impl FromWorld for AsciiShaderPipeline {
             });
 
         AsciiShaderPipeline {
+            overlay_textures: HashMap::new(),
+            target_size: Vec2::ZERO,
             layout,
             sampler,
             font_texture,

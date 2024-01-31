@@ -10,12 +10,17 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
+use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, AsciiShaderPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            AsciiShaderPlugin,
+            WorldInspectorPlugin::default(),
+        ))
         .add_systems(Startup, init)
         .add_systems(Update, close_on_esc)
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
@@ -45,6 +50,17 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         .into(),
         ..default()
     });
+
+    // commands.spawn(PointLightBundle {
+    //     point_light: PointLight {
+    //         color: Color::BLUE,
+    //         intensity: 1600.0,
+    //         shadows_enabled: true,
+    //         ..Default::default()
+    //     },
+    //     transform: Transform::from_xyz(1.0, 0.0, 1.0),
+    //     ..Default::default()
+    // });
 
     commands.spawn(SceneBundle {
         scene: asset_server.load("Skull.glb#Scene0"),

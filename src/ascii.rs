@@ -33,14 +33,12 @@ impl Plugin for AsciiShaderPlugin {
 pub struct AsciiCameraBundle {
     pub camera_bundle: Camera3dBundle,
     pub ascii_cam: AsciiCamera,
-    pub depth_prepass: DepthPrepass,
 }
 
 impl Default for AsciiCameraBundle {
     fn default() -> Self {
         AsciiCameraBundle {
             camera_bundle: Camera3dBundle::default(),
-            depth_prepass: DepthPrepass,
             ascii_cam: AsciiCamera::default(),
         }
     }
@@ -54,12 +52,14 @@ impl Default for AsciiCameraBundle {
 pub struct AsciiCamera {
     #[inspector(min = 24.0)]
     pub pixels_per_character: f32,
+    pub should_render: bool,
 }
 
 impl Default for AsciiCamera {
     fn default() -> Self {
         AsciiCamera {
             pixels_per_character: 24.0,
+            should_render: true,
         }
     }
 }
