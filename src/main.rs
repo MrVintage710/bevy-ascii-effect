@@ -1,5 +1,6 @@
 mod ascii;
 pub(crate) mod render;
+mod ui;
 
 use ascii::{AsciiCameraBundle, AsciiShaderPlugin};
 use bevy::{
@@ -12,6 +13,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
+use ui::{AsciiUi, TestNode};
 
 fn main() {
     App::new()
@@ -29,8 +31,13 @@ fn main() {
 }
 
 pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let mut ascii_ui = AsciiUi::default();
+
+    ascii_ui.add_node(TestNode);
+
     commands
         .spawn(AsciiCameraBundle::default())
+        .insert(ascii_ui)
         .insert(PanOrbitCamera::default());
 
     commands.spawn(DirectionalLightBundle {

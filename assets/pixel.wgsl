@@ -46,6 +46,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    return vec4<f32>(colors[closest_color_index], value / 1.4142135623731);
+    let color_value = max(base_color.x, max(base_color.y, base_color.z));
+
+    return vec4<f32>(colors[closest_color_index], color_value);
     // return textureSample(screen_texture, texture_sampler, in.uv);
 }

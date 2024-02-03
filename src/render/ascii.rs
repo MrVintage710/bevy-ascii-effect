@@ -11,7 +11,7 @@ use bevy::{
             CachedRenderPipelineId, ColorTargetState, ColorWrites, Extent3d, FragmentState,
             ImageCopyTexture, ImageDataLayout, MultisampleState, Origin3d, PipelineCache,
             PrimitiveState, RenderPipelineDescriptor, Sampler, SamplerBindingType,
-            SamplerDescriptor, ShaderStages, ShaderType, TextureAspect, TextureFormat,
+            SamplerDescriptor, ShaderStages, ShaderType, Texture, TextureAspect, TextureFormat,
             TextureSampleType, TextureView, TextureViewDescriptor, TextureViewDimension,
         },
         renderer::{RenderDevice, RenderQueue},
@@ -29,12 +29,13 @@ use bevy::{
 // This contains global data used by the render pipeline. This will be created once on startup.
 #[derive(Resource)]
 pub(crate) struct AsciiShaderPipeline {
-    pub overlay_textures: HashMap<Entity, TextureView>,
+    pub overlay_textures: HashMap<Entity, Texture>,
     pub target_size: Vec2,
     pub layout: BindGroupLayout,
     pub sampler: Sampler,
     pub font_texture: TextureView,
     pub pipeline_id: CachedRenderPipelineId,
+    pub overlay: Option<Vec<u8>>,
 }
 
 impl FromWorld for AsciiShaderPipeline {
@@ -72,7 +73,7 @@ impl FromWorld for AsciiShaderPipeline {
                     binding: 2,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
+                        sample_type: TextureSampleType::Uint,
                         view_dimension: TextureViewDimension::D2,
                         multisampled: false,
                     },
@@ -185,6 +186,13 @@ impl FromWorld for AsciiShaderPipeline {
             sampler,
             font_texture,
             pipeline_id,
+            overlay: None,
         }
     }
 }
+//=============================================================================
+//             OverlayBuffer
+//=============================================================================
+
+#[derive(Component)]
+pub struct OverlayBuffer(pub Vec<u8>);

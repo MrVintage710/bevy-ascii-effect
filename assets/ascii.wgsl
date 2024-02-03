@@ -2,7 +2,7 @@
 
 @group(0) @binding(0) var screen_texture: texture_2d<f32>;
 @group(0) @binding(1) var font_texture: texture_2d<f32>;
-@group(0) @binding(2) var overlay_texture: texture_2d<f32>;
+@group(0) @binding(2) var overlay_texture: texture_2d<u32>;
 @group(0) @binding(3) var texture_sampler: sampler;
 
 struct PostProcessSettings {
@@ -22,9 +22,12 @@ const CHARACTER_DIMENSIONS = vec2<f32>(24.0, 24.0);
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
     let output_dims = vec2<f32>(textureDimensions(screen_texture));
+    let screen_pos = vec2<u32>(floor(output_dims * in.uv));
     
-    let screen_color = textureSample(screen_texture, texture_sampler, in.uv);
-    let overlay_info = textureSample(overlay_texture, texture_sampler, in.uv);
+    let overlay_info = textureLoad(overlay_texture, screen_pos, 0);
+    
+        
+    let screen_color = textureSampleLevel(screen_texture, texture_sampler, in.uv, 0.0);
 
     let o_index = overlay_info.x;
     
@@ -33,8 +36,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         u32(floor(settings.pixels_per_character * (floor(in.position.y / settings.pixels_per_character))))
     );
     
-    let value = max(screen_color.x, max(screen_color.y, screen_color.z));
-
+    let value = screen_color.w;
+    
     var indices = array<f32, 10>(
         46.0,
         58.0,
@@ -47,8 +50,31 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         86.0,
         102.0
     );
+    
+    var colors = array<vec3<f32>, 16>(
+        vec3<f32>(0.0, 0.0, 0.0), //Black
+        vec3<f32>(1.0, 1.0, 1.0), //White
+        vec3<f32>(0.533, 0.0, 0.0), //Red
+        vec3<f32>(0.667, 1.0, 0.933), //Cyan
+        vec3<f32>(0.8, 0.267, 0.8), //Violet
+        vec3<f32>(0.0, 0.8, 0.333), //Green
+        vec3<f32>(0.0, 0.0, 0.667), //Blue
+        vec3<f32>(0.933, 0.933, 0.467), //Yellow
+        vec3<f32>(0.867, 0.533, 0.333), //Orange
+        vec3<f32>(0.4, 0.267, 0.0), //Brown
+        vec3<f32>(1.0, 0.467, 0.467), //Light Red
+        vec3<f32>(0.2, 0.2, 0.2), //Dark Grey
+        vec3<f32>(0.467, 0.467, 0.467), //Grey
+        vec3<f32>(0.667, 1.0, 0.4), //Light Green
+        vec3<f32>(0.0, 0.533, 1.0), //Light Blue
+        vec3<f32>(0.733, 0.733, 0.733) //Light Grey
+    );
 
-    let index = indices[i32(floor(value / 0.1))];
+    var index = indices[i32(floor(value / 0.1))];
+
+    if(overlay_info.w == u32(1)) {
+        index = f32(min(overlay_info.x, u32(127)));
+    }
       
     let character_uv = vec2<f32>(
         ((index % 16.0) * CHARACTER_DIMENSIONS.x) / TEXTURE_RESOLUTION.x, 
@@ -63,11 +89,19 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 
     let font_uv = character_uv + (character_size_uv * inner_pixel_uv);
     
-    let font_color = textureSample(font_texture, texture_sampler, font_uv);
+    let font_color = textureSampleLevel(font_texture, texture_sampler, font_uv, 1.0);
+
+    if(overlay_info.w == u32(1)) {      
+        if (font_color.x == 1.0) {
+            var color_index = min(u32(15), overlay_info.y);
+            return vec4<f32>(colors[i32(color_index)], 1.0);
+        } else {
+            var color_index = min(u32(15), overlay_info.z);
+            return vec4<f32>(colors[i32(color_index)], 1.0);
+        }
+    } 
     
-    if(o_index == 0.0) {
-        return vec4<f32>(1.0, 0.0, 0.0, 0.0);
-    } else if (font_color.x == 1.0) {
+    if (font_color.x == 1.0) {
         return screen_color;
     } else {
         return font_color;

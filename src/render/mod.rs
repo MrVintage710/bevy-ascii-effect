@@ -1,7 +1,6 @@
 mod ascii;
 mod dither;
 mod pixel;
-mod ui;
 
 use bevy::{
     app::Plugin,
@@ -11,9 +10,10 @@ use bevy::{
         self,
         render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner},
         render_resource::{
-            BindGroupEntries, Extent3d, Operations, PipelineCache, RenderPassColorAttachment,
-            RenderPassDescriptor, RenderPipeline, TextureDescriptor, TextureDimension,
-            TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
+            BindGroupEntries, Extent3d, ImageCopyTexture, ImageDataLayout, Operations, Origin3d,
+            PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+            TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+            TextureView, TextureViewDescriptor,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::BevyDefault,
@@ -23,9 +23,15 @@ use bevy::{
 };
 use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
-use crate::ascii::{AsciiCamera, AsciiShaderSettingsBuffer};
+use crate::{
+    ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
+    ui::{AsciiBuffer, AsciiUi},
+};
 
-use self::{ascii::AsciiShaderPipeline, pixel::PixelShaderPipeline};
+use self::{
+    ascii::{AsciiShaderPipeline, OverlayBuffer},
+    pixel::PixelShaderPipeline,
+};
 
 //=============================================================================
 //             Ascii Shader Node
@@ -132,6 +138,11 @@ impl ViewNode for AsciiShaderNode {
             return Ok(());
         };
 
+        let overlay_texture = overlay_texture.create_view(&TextureViewDescriptor {
+            label: None,
+            ..Default::default()
+        });
+
         let Some(settings_binding) = settings_uniforms.binding() else {
             return Ok(());
         };
@@ -170,7 +181,7 @@ impl ViewNode for AsciiShaderNode {
                 // use the font texture
                 &ascii_pipeline_resource.font_texture,
                 //The overlay texture
-                overlay_texture,
+                &overlay_texture,
                 // Use the sampler created for the pipeline
                 &ascii_pipeline_resource.sampler,
                 // Set the settings binding
@@ -237,11 +248,25 @@ fn pixel_pass(
 
 pub fn extract_camera(
     mut commands: Commands,
-    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera)>>,
+    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>)>>,
+    mut has_rendered: Local<bool>,
 ) {
-    for (entity, camera, pixel_camera) in &cameras {
+    for (entity, camera, pixel_camera, ascii_ui) in &cameras {
         if camera.is_active && pixel_camera.should_render {
-            commands.get_or_spawn(entity).insert(pixel_camera.clone());
+            let mut entity = commands.get_or_spawn(entity);
+            entity.insert(pixel_camera.clone());
+
+            if let Some(ascii_ui) = ascii_ui {
+                if ascii_ui.is_dirty() || !*has_rendered {
+                    println!("Ascii UI is dirty.");
+                    let target_res = pixel_camera.target_res();
+                    let mut buffer =
+                        AsciiBuffer::from_res(target_res.x as u32, target_res.y as u32);
+                    ascii_ui.render(&mut buffer);
+                    entity.insert(OverlayBuffer(buffer.as_byte_vec()));
+                    *has_rendered = true;
+                }
+            }
         }
     }
 }
@@ -255,23 +280,20 @@ pub fn extract_camera(
 pub fn prepare_shader_textures(
     mut pixel_shader_pipeline: ResMut<PixelShaderPipeline>,
     mut ascii_shader_pipeline: ResMut<AsciiShaderPipeline>,
-    acsii_cameras: Query<(Entity, &AsciiCamera)>,
+    acsii_cameras: Query<(Entity, &AsciiCamera, Option<&OverlayBuffer>)>,
     render_device: ResMut<RenderDevice>,
+    render_queue: ResMut<RenderQueue>,
     windows: Res<ExtractedWindows>,
 ) {
     let window = windows.windows.get(&windows.primary.unwrap()).unwrap();
 
-    for (entity, ascii_camera) in acsii_cameras.iter() {
-        let target_resolution = Vec2::new(
-            (window.physical_width as f32 / ascii_camera.pixels_per_character).floor(),
-            (window.physical_height as f32 / ascii_camera.pixels_per_character).floor(),
-        );
-
+    for (entity, ascii_camera, overlay_buffer) in acsii_cameras.iter() {
+        let target_resolution = ascii_camera.target_res();
         //First check to see if the render texture for the pixel shader needs updating.
-        if target_resolution != pixel_shader_pipeline.target_size
+        if *target_resolution != pixel_shader_pipeline.target_size
             || !pixel_shader_pipeline.low_res_textures.contains_key(&entity)
         {
-            pixel_shader_pipeline.target_size = target_resolution;
+            pixel_shader_pipeline.target_size = *target_resolution;
             let low_res_texture = render_device
                 .create_texture(&TextureDescriptor {
                     label: "low_res_texture".into(),
@@ -298,33 +320,49 @@ pub fn prepare_shader_textures(
         }
 
         //Then do the same thing with the overlay shaders
-        if target_resolution != ascii_shader_pipeline.target_size
+        if *target_resolution != ascii_shader_pipeline.target_size
             || !ascii_shader_pipeline.overlay_textures.contains_key(&entity)
         {
-            ascii_shader_pipeline.target_size = target_resolution;
-            let overlay_texture = render_device
-                .create_texture(&TextureDescriptor {
-                    label: "overlay_texture".into(),
-                    size: Extent3d {
-                        width: target_resolution.x as u32,
-                        height: target_resolution.y as u32,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: TextureDimension::D2,
-                    format: TextureFormat::bevy_default(),
-                    usage: TextureUsages::TEXTURE_BINDING | TextureUsages::RENDER_ATTACHMENT,
-                    view_formats: &[TextureFormat::bevy_default()],
-                })
-                .create_view(&TextureViewDescriptor {
-                    label: Some("overlay_texture"),
-                    ..TextureViewDescriptor::default()
-                });
+            ascii_shader_pipeline.target_size = *target_resolution;
+            let overlay_texture = render_device.create_texture(&TextureDescriptor {
+                label: "overlay_texture".into(),
+                size: Extent3d {
+                    width: target_resolution.x as u32,
+                    height: target_resolution.y as u32,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba8Uint,
+                usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
 
             ascii_shader_pipeline
                 .overlay_textures
                 .insert(entity, overlay_texture);
+        }
+
+        //Here we need to update the overlay textures:
+        if let Some(overlay_buffer) = overlay_buffer {
+            if let Some(overlay_texture) = ascii_shader_pipeline.overlay_textures.get(&entity) {
+                println!("Rendering to Overlay {}", overlay_buffer.0.len());
+                render_queue.write_texture(
+                    overlay_texture.as_image_copy(),
+                    &overlay_buffer.0,
+                    ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some((target_resolution.x * 4.0) as u32),
+                        rows_per_image: Some(target_resolution.y as u32),
+                    },
+                    Extent3d {
+                        width: target_resolution.x as u32,
+                        height: target_resolution.y as u32,
+                        depth_or_array_layers: 1,
+                    },
+                )
+            }
         }
     }
 }

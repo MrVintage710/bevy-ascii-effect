@@ -3,13 +3,18 @@ use bevy::{
     core_pipeline::prepass::DepthPrepass,
     prelude::*,
     render::{
+        camera::RenderTarget,
         render_resource::{DynamicUniformBuffer, ShaderType},
         renderer::{RenderDevice, RenderQueue},
     },
+    window::{PrimaryWindow, WindowRef, WindowResized},
 };
 use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
-use crate::render::AsciiRendererPlugin;
+use crate::{
+    render::AsciiRendererPlugin,
+    ui::{AsciiUi, AsciiUiPlugin},
+};
 
 //=============================================================================
 //             Acsii Shader Plugin
@@ -20,8 +25,10 @@ pub struct AsciiShaderPlugin;
 //This plugin will add the settings required for the AsciiShader and add the post precess shader to the right spot on the render graph.
 impl Plugin for AsciiShaderPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<AsciiCamera>()
-            .add_plugins(AsciiRendererPlugin);
+        app.add_plugins(AsciiUiPlugin)
+            .register_type::<AsciiCamera>()
+            .add_plugins(AsciiRendererPlugin)
+            .add_systems(PreUpdate, update_target_resolution);
     }
 }
 
@@ -48,11 +55,13 @@ impl Default for AsciiCameraBundle {
 //             Shader Settings
 //=============================================================================
 
-#[derive(Component, Clone, Copy, Reflect, InspectorOptions)]
+#[derive(Component, Clone, Reflect, InspectorOptions)]
 pub struct AsciiCamera {
     #[inspector(min = 24.0)]
     pub pixels_per_character: f32,
     pub should_render: bool,
+    #[reflect(ignore)]
+    target_resolution: Vec2,
 }
 
 impl Default for AsciiCamera {
@@ -60,6 +69,7 @@ impl Default for AsciiCamera {
         AsciiCamera {
             pixels_per_character: 24.0,
             should_render: true,
+            target_resolution: Vec2::ZERO,
         }
     }
 }
@@ -83,6 +93,10 @@ impl AsciiCamera {
 
         dyn_buffer
     }
+
+    pub fn target_res(&self) -> &Vec2 {
+        &self.target_resolution
+    }
 }
 
 #[derive(ShaderType)]
@@ -91,4 +105,48 @@ pub struct AsciiShaderSettingsBuffer {
     // WebGL2 structs must be 16 byte aligned.
     #[cfg(feature = "webgl2")]
     pub _webgl2_padding: Vec3,
+}
+
+//=============================================================================
+//             Shader Settings
+//=============================================================================
+
+fn update_target_resolution(
+    mut ascii_cameras: Query<(&mut AsciiCamera, &Camera)>,
+    windows: Query<&Window, Without<PrimaryWindow>>,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
+    images: Res<Assets<Image>>,
+) {
+    for (mut ascii_camera, camera) in ascii_cameras.iter_mut() {
+        let res: (f32, f32) = match &camera.target {
+            RenderTarget::Window(window_ref) => match window_ref {
+                WindowRef::Primary => {
+                    let primary_window = primary_window.single();
+                    (
+                        primary_window.physical_width() as f32,
+                        primary_window.physical_height() as f32,
+                    )
+                }
+                WindowRef::Entity(entity) => {
+                    let window = windows.get(*entity).unwrap();
+                    (
+                        window.physical_width() as f32,
+                        window.physical_height() as f32,
+                    )
+                }
+            },
+            RenderTarget::Image(image) => {
+                let image = images.get(image.id()).unwrap();
+                (image.width() as f32, image.height() as f32)
+            }
+            RenderTarget::TextureView(_) => return,
+        };
+
+        let target_resolution = Vec2::new(
+            (res.0 / ascii_camera.pixels_per_character).floor(),
+            (res.1 / ascii_camera.pixels_per_character).floor(),
+        );
+
+        ascii_camera.target_resolution = target_resolution
+    }
 }
