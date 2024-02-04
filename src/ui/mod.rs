@@ -156,9 +156,9 @@ impl AsciiBuffer {
 #[derive(Clone, Copy)]
 pub enum AsciiCharacter {
     Set {
-        index: u8,
-        text_color: u8,
-        background_color: u8,
+        index: Character,
+        text_color: Color,
+        background_color: Color,
     },
     Unset,
 }
@@ -170,26 +170,37 @@ impl Default for AsciiCharacter {
 }
 
 impl AsciiCharacter {
-    pub const AT_SIGN: AsciiCharacter = AsciiCharacter::Set {
-        index: 0,
-        text_color: 1,
-        background_color: 0,
-    };
-    pub const A: AsciiCharacter = AsciiCharacter::Set {
-        index: 0,
-        text_color: 1,
-        background_color: 0,
-    };
-    pub const B: AsciiCharacter = AsciiCharacter::Set {
-        index: 1,
-        text_color: 1,
-        background_color: 0,
-    };
-    pub const C: AsciiCharacter = AsciiCharacter::Set {
-        index: 2,
-        text_color: 1,
-        background_color: 0,
-    };
+    pub fn new(character: Character) -> AsciiCharacter {
+        AsciiCharacter::Set {
+            index: character,
+            text_color: Color::White,
+            background_color: Color::Black,
+        }
+    }
+
+    pub fn with_text_color(mut self, color: Color) -> Self {
+        if let AsciiCharacter::Set {
+            index,
+            mut text_color,
+            background_color,
+        } = self
+        {
+            text_color = color;
+        }
+        self
+    }
+
+    pub fn with_color(mut self, color: Color) -> Self {
+        if let AsciiCharacter::Set {
+            index,
+            text_color,
+            mut background_color,
+        } = self
+        {
+            background_color = color;
+        }
+        self
+    }
 
     pub fn into_u8(&self) -> [u8; 4] {
         match self {
@@ -198,10 +209,13 @@ impl AsciiCharacter {
                 text_color,
                 background_color,
             } => {
-                if *index > 127u8 || *text_color > 15u8 || *background_color > 15u8 {
+                if *index as u8 > 127u8
+                    || *text_color as u8 > 15u8
+                    || *background_color as u8 > 15u8
+                {
                     return [0, 0, 0, 0];
                 } else {
-                    return [*index, *text_color, *background_color, 1];
+                    return [*index as u8, *text_color as u8, *background_color as u8, 1];
                 }
             }
             _ => (),
@@ -237,10 +251,168 @@ pub struct TestNode;
 
 impl AsciiUiNode for TestNode {
     fn render(&self, buffer: &mut AsciiBuffer) {
-        buffer.set_character(0, 0, AsciiCharacter::A);
+        buffer.set_character(
+            0,
+            0,
+            AsciiCharacter::new(Character::ArrowLeft).with_color(Color::Violet),
+        );
     }
 
     fn update(&mut self, context: &mut AsciiUiContext) {
         // context.mark_dirty();
     }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Character {
+    AT,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    LeftBracket,
+    Euro,
+    RightBracket,
+    ArrowUp,
+    ArrowLeft,
+    Space,
+    ExcalamationMark,
+    DoubleQuotes,
+    Hashtag,
+    Dollar,
+    Percent,
+    Ampersand,
+    Apostrophe,
+    LeftParenthesis,
+    RightParenthesis,
+    Asterisk,
+    Plus,
+    Comma,
+    Hyphen,
+    Period,
+    ForwardSlash,
+    Zero,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+    Eight,
+    Nine,
+    Colon,
+    SemiColon,
+    LessThan,
+    Equal,
+    GreaterThan,
+    QuestionMark,
+    DashedHorizontalCenter,
+    Spade,
+    BorderVerticalCenter,
+    BorderHorizontalCenter,
+    BorderHorizontalN2,
+    BorderHorizontalN4,
+    BorderHorizontalS2,
+    BorderVerticalW2,
+    BorderVerticalE2,
+    RoundedCornerCenterNE,
+    RoundedCornerCenterSW,
+    RoundedCornerCenterSE,
+    LBorderSW,
+    DiagonalEB,
+    DiagonalWB,
+    LBorderNW,
+    LBorderNE,
+    Circle,
+    BorderHorizontalS4,
+    Heart,
+    BorderVerticalW4,
+    RoundedCornerNW,
+    DiagonalCross,
+    Doughnut,
+    Sign,
+    BorderVerticalE4,
+    Ball,
+    Cross,
+    DitherW,
+    DashedVerticalCenter,
+    Pi,
+    StairNE,
+    Nil,
+    HalfW,
+    HalfS,
+    ThinBorderN,
+    ThinBorderS,
+    BorderW,
+    Dither,
+    BorderE,
+    DitherS,
+    StairsNW,
+    DashedE,
+    TBorderNSE,
+    QuadSE,
+    CornerNE,
+    CornerWS,
+    BorderS,
+    CornerNW,
+    TBorderNWE,
+    TBorderSWE,
+    TBorderNSW,
+    DashedW,
+    ThickBorderW,
+    ThickBorderE,
+    BorderN,
+    ThickBorderN,
+    ThickBorderS,
+    LBorderSE,
+    QuadSW,
+    QuadNE,
+    CornerSE,
+    QuadNW,
+    QuadCorners,
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Color {
+    Black,
+    White,
+    Red,
+    Cyan,
+    Violet,
+    Green,
+    Blue,
+    Yellow,
+    Orange,
+    Brown,
+    LightRed,
+    DarkGrey,
+    Grey,
+    LightGreen,
+    LightBlue,
+    LightGrey,
 }
