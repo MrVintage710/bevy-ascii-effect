@@ -259,10 +259,8 @@ pub fn extract_camera(
             if let Some(ascii_ui) = ascii_ui {
                 if ascii_ui.is_dirty() || !*has_rendered {
                     let target_res = pixel_camera.target_res();
-                    let mut buffer =
-                        AsciiBuffer::from_res(target_res.x as u32, target_res.y as u32);
-                    ascii_ui.render(&mut buffer);
-                    entity.insert(OverlayBuffer(buffer.as_byte_vec()));
+                    let buffer = ascii_ui.render(target_res.x as u32, target_res.y as u32);
+                    entity.insert(OverlayBuffer(buffer));
                     *has_rendered = true;
                 }
             }

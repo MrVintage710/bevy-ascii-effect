@@ -1,4 +1,7 @@
-use std::num::NonZeroU128;
+use std::{
+    num::NonZeroU128,
+    sync::{Arc, Mutex},
+};
 
 use bevy::{
     diagnostic::RegisterDiagnostic,
@@ -36,10 +39,25 @@ impl AsciiUi {
         self.is_dirty
     }
 
-    pub fn render(&self, buffer: &mut AsciiBuffer) {
+    pub fn render(&self, width: u32, height: u32) -> Vec<u8> {
+        let mut data: Vec<AsciiCharacter> =
+            vec![AsciiCharacter::default(); (width * height) as usize];
+
+        let mut buffer = AsciiBuffer {
+            surface: Mutex::new(data),
+            surface_width: width,
+            surface_height: height,
+            width,
+            height,
+            x: 0,
+            y: 0,
+        };
+
         for node in self.nodes.iter() {
-            node.render(buffer);
+            node.render(&mut buffer);
         }
+
+        buffer.as_byte_vec()
     }
 
     pub fn add_node(&mut self, node: impl AsciiUiNode + Send + Sync + 'static) {
@@ -75,77 +93,30 @@ impl<'ui> AsciiUiContext<'ui> {
 //=============================================================================
 
 pub struct AsciiBuffer {
-    data: Vec<AsciiCharacter>,
+    pub surface: Mutex<Vec<AsciiCharacter>>,
+    surface_width: u32,
+    surface_height: u32,
     width: u32,
     height: u32,
-}
-
-impl Default for AsciiBuffer {
-    fn default() -> Self {
-        AsciiBuffer {
-            data: Vec::new(),
-            width: 0,
-            height: 0,
-        }
-    }
+    x: u32,
+    y: u32,
 }
 
 impl AsciiBuffer {
-    pub fn from_res(width: u32, height: u32) -> Self {
-        let data: Vec<AsciiCharacter> = vec![AsciiCharacter::default(); (width * height) as usize];
-
-        AsciiBuffer {
-            data,
-            width,
-            height,
-        }
-    }
-
-    pub fn apply(&self, texture: &Texture, queue: &Res<RenderQueue>) {
-        queue.write_texture(
-            ImageCopyTexture {
-                texture,
-                mip_level: 0,
-                origin: Origin3d::ZERO,
-                aspect: TextureAspect::All,
-            },
-            self.as_byte_vec().as_slice(),
-            self.image_data_layout(),
-            self.size(),
-        );
-    }
-
-    pub fn as_byte_vec(&self) -> Vec<u8> {
-        let result = self
-            .data
-            .iter()
-            .map(|value| value.into_u8())
-            .flatten()
-            .collect();
-        result
-    }
-
-    pub fn size(&self) -> Extent3d {
-        Extent3d {
-            width: self.width,
-            height: self.height,
-            depth_or_array_layers: 1,
-        }
-    }
-
-    pub fn image_data_layout(&self) -> ImageDataLayout {
-        ImageDataLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * self.width),
-            rows_per_image: Some(self.height),
-        }
-    }
-
     pub fn set_character(&mut self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
-        let index = self.calc_index(x, y);
-        if self.data.len() > index {
-            self.data[index] = character.into();
+        if self.is_within(x, y) {
+            let index = self.calc_index(x, y);
+            if (self.surface_width * self.surface_height) as usize > index {
+                let mut surface = self.surface.get_mut().expect(
+                    "There has been an error writing to the Ascii Overlay. Mutex is Poisoned.",
+                );
+                surface[index] = character.into();
+            }
         }
+    }
+
+    pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> AsciiBuffer {
+        if self.is_within(x, y) {}
     }
 
     pub fn filled_border_box(
@@ -200,6 +171,34 @@ impl AsciiBuffer {
         }
     }
 
+    pub fn text_box_color(
+        &mut self,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        text: &str,
+        text_color: Color,
+        bg_color: Color,
+    ) {
+        let text = textwrap::wrap(text, Options::new(width as usize));
+
+        for row in 0..height {
+            if text.len() <= row as usize {
+                break;
+            }
+
+            let line = &text[row as usize];
+
+            if row != (height - 1) {
+                self.text_color(x, y + row, &line, text_color, bg_color);
+            } else {
+                let text = line.split_at(text.len() - 3);
+                self.text_color(x, y + row, &format!("{}...", text.0), text_color, bg_color);
+            }
+        }
+    }
+
     pub fn text_box(&mut self, x: u32, y: u32, width: u32, height: u32, text: &str) {
         let text = textwrap::wrap(text, Options::new(width as usize));
 
@@ -232,8 +231,93 @@ impl AsciiBuffer {
     }
 
     fn calc_index(&self, x: u32, y: u32) -> usize {
-        (x + (y * self.width)) as usize
+        let x = self.x + x;
+        let y = self.y + y;
+        (x + (y * self.surface_width)) as usize
     }
+
+    fn is_within(&self, x: u32, y: u32) -> bool {
+        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
+    }
+
+    fn as_byte_vec(&self) -> Vec<u8> {
+        let result = self
+            .surface
+            .lock()
+            .expect("Error while rendering Ascii overlay.")
+            .iter()
+            .map(|value| value.into_u8())
+            .flatten()
+            .collect();
+        result
+    }
+}
+
+//=============================================================================
+//             Ascii Box Drawer
+//=============================================================================
+
+pub struct AsciiBoxDrawer<'b> {
+    buffer: &'b mut AsciiBuffer,
+    bg_color: Color,
+    border_color: Color,
+    title_color: Color,
+    title_bg_color: Option<Color>,
+    with_border: bool,
+    title: Option<String>,
+    border: BorderType,
+}
+
+impl<'b> AsciiBoxDrawer<'b> {
+    pub fn draw(mut self) -> AsciiBuffer {
+        for y in 0..self.buffer.height {
+            for x in 0..self.buffer.width {}
+        }
+    }
+
+    pub fn bg_color(mut self, bg_color: Color) -> Self {
+        self.bg_color = bg_color;
+        self
+    }
+
+    pub fn border_color(mut self, border_color: Color) -> Self {
+        self.border_color = border_color;
+        self
+    }
+
+    pub fn border(mut self, border_type: BorderType) -> Self {
+        self.border = border_type;
+        self
+    }
+
+    pub fn title_text_color(mut self, text_color: Color) -> Self {
+        self.title_color = text_color;
+        self
+    }
+
+    pub fn title_bg_color(mut self, bg_color: Color) -> Self {
+        self.title_bg_color = Some(bg_color);
+        self
+    }
+
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.to_string());
+        self
+    }
+}
+
+pub enum BorderType {
+    Full,
+    Half,
+    Dashed,
+    None,
+}
+
+pub enum TextOverflow {
+    Hidden,
+    Wrap,
+    Elipses,
+    None,
 }
 
 //=============================================================================
