@@ -1,5 +1,8 @@
 use std::{
+    default,
+    fmt::format,
     num::NonZeroU128,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -8,7 +11,8 @@ use bevy::{
     prelude::*,
     render::{
         render_resource::{
-            Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d, Texture, TextureAspect,
+            ErasedTexture, Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d, Texture,
+            TextureAspect,
         },
         renderer::{RenderDevice, RenderQueue},
     },
@@ -44,7 +48,7 @@ impl AsciiUi {
             vec![AsciiCharacter::default(); (width * height) as usize];
 
         let mut buffer = AsciiBuffer {
-            surface: Mutex::new(data),
+            surface: Rc::new(Mutex::new(data)),
             surface_width: width,
             surface_height: height,
             width,
@@ -93,7 +97,7 @@ impl<'ui> AsciiUiContext<'ui> {
 //=============================================================================
 
 pub struct AsciiBuffer {
-    pub surface: Mutex<Vec<AsciiCharacter>>,
+    pub surface: Rc<Mutex<Vec<AsciiCharacter>>>,
     surface_width: u32,
     surface_height: u32,
     width: u32,
@@ -103,11 +107,13 @@ pub struct AsciiBuffer {
 }
 
 impl AsciiBuffer {
-    pub fn set_character(&mut self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
+    pub fn set_character(&self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
+        let x = self.x + x;
+        let y = self.y + y;
         if self.is_within(x, y) {
             let index = self.calc_index(x, y);
             if (self.surface_width * self.surface_height) as usize > index {
-                let mut surface = self.surface.get_mut().expect(
+                let mut surface = self.surface.lock().expect(
                     "There has been an error writing to the Ascii Overlay. Mutex is Poisoned.",
                 );
                 surface[index] = character.into();
@@ -115,8 +121,51 @@ impl AsciiBuffer {
         }
     }
 
-    pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> AsciiBuffer {
-        if self.is_within(x, y) {}
+    pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> Option<AsciiBuffer> {
+        let x = self.x + x;
+        let y = self.y + y;
+        if self.is_within(x, y) {
+            let width = self.width.saturating_sub(x).min(width);
+            let height = self.height.saturating_sub(y).min(height);
+
+            return Some(AsciiBuffer {
+                surface: self.surface.clone(),
+                surface_width: self.surface_width,
+                surface_height: self.surface_height,
+                width,
+                height,
+                x,
+                y,
+            });
+        }
+
+        None
+    }
+
+    pub fn center(&self, width: u32, height: u32) -> AsciiBuffer {
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            surface_width: self.surface_width,
+            surface_height: self.surface_width,
+            width,
+            height,
+            x: self.width / 2 - width / 2,
+            y: self.height / 2 - height / 2,
+        }
+    }
+
+    pub fn square(&self) -> AsciiBoxDrawer {
+        AsciiBoxDrawer {
+            buffer: self,
+            bg_color: Color::Black,
+            border_color: Color::White,
+            title_color: Color::Black,
+            title_bg_color: None,
+            title: None,
+            title_alignment: HorizontalAlignment::Left,
+            title_overflow: TextOverflow::default(),
+            border: BorderType::None,
+        }
     }
 
     pub fn filled_border_box(
@@ -258,21 +307,68 @@ impl AsciiBuffer {
 //=============================================================================
 
 pub struct AsciiBoxDrawer<'b> {
-    buffer: &'b mut AsciiBuffer,
+    buffer: &'b AsciiBuffer,
     bg_color: Color,
     border_color: Color,
     title_color: Color,
     title_bg_color: Option<Color>,
-    with_border: bool,
     title: Option<String>,
+    title_alignment: HorizontalAlignment,
+    title_overflow: TextOverflow,
     border: BorderType,
 }
 
 impl<'b> AsciiBoxDrawer<'b> {
-    pub fn draw(mut self) -> AsciiBuffer {
+    pub fn draw(mut self) -> Option<AsciiBuffer> {
         for y in 0..self.buffer.height {
-            for x in 0..self.buffer.width {}
+            for x in 0..self.buffer.width {
+                let character = self.calc_character(x, y);
+                self.buffer.set_character(x, y, character);
+            }
         }
+
+        self.buffer
+            .sub_buffer(1, 1, self.buffer.width - 2, self.buffer.height - 2)
+    }
+
+    fn calc_character(&mut self, x: u32, y: u32) -> AsciiCharacter {
+        let max_title_width = self.buffer.width as i32 - 4;
+        let character = self
+            .border
+            .get_character(x, y, self.buffer.width, self.buffer.height);
+        if max_title_width < 2 {
+            return (character, self.border_color, self.bg_color).into();
+        }
+
+        if let Some(title) = &self.title {
+            if y == 0 && x >= 2 && x <= self.buffer.width - 2 {
+                let title_len = title.len().min(max_title_width as usize);
+                // let difference = title_len as i32 - max_title_width;
+                let x_start = match self.title_alignment {
+                    HorizontalAlignment::Left => 2,
+                    HorizontalAlignment::Center => {
+                        (self.buffer.width / 2 - title_len as u32 / 2).max(2)
+                    }
+                    HorizontalAlignment::Right => {
+                        (self.buffer.width as i32 - title_len as i32 - 2).max(2) as u32
+                    }
+                };
+
+                let index = x as i32 - x_start as i32;
+
+                if index >= 0 && index < title_len as i32 {
+                    let c: Character = title.chars().nth(index as usize).unwrap().into();
+                    return (
+                        c,
+                        self.title_color,
+                        self.title_bg_color.unwrap_or(self.border_color),
+                    )
+                        .into();
+                }
+            }
+        }
+
+        (character, self.border_color, self.bg_color).into()
     }
 
     pub fn bg_color(mut self, bg_color: Color) -> Self {
@@ -313,11 +409,60 @@ pub enum BorderType {
     None,
 }
 
+impl BorderType {
+    fn get_character(&self, x: u32, y: u32, width: u32, height: u32) -> Character {
+        match self {
+            BorderType::Full => {
+                if x == 0 && y == 0 {
+                    Character::LBorderNW
+                } else if x == width - 1 && y == 0 {
+                    Character::LBorderNE
+                } else if x == 0 && y == height - 1 {
+                    Character::LBorderSW
+                } else if x == width - 1 && y == height - 1 {
+                    Character::LBorderSE
+                } else if x == 0 {
+                    Character::BorderW
+                } else if x == width - 1 {
+                    Character::BorderE
+                } else if y == 0 {
+                    Character::BorderN
+                } else if y == height - 1 {
+                    Character::BorderS
+                } else {
+                    Character::Nil
+                }
+            }
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+}
+
+#[derive(Default)]
 pub enum TextOverflow {
+    #[default]
     Hidden,
     Wrap,
     Elipses,
     None,
+}
+
+#[derive(Default)]
+pub enum HorizontalAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Default)]
+pub enum VerticalAlignment {
+    #[default]
+    Top,
+    Center,
+    Bottom,
 }
 
 //=============================================================================
@@ -440,21 +585,27 @@ pub struct TestNode;
 
 impl AsciiUiNode for TestNode {
     fn render(&self, buffer: &mut AsciiBuffer) {
-        buffer.filled_border_box(buffer.width - 21, 1, 20, 11, Color::White, Color::LightBlue);
-        buffer.text_color(
-            buffer.width - 20,
-            2,
-            "Hello World",
-            Color::White,
-            Color::LightBlue,
-        );
-        buffer.text_box(
-            buffer.width - 20,
-            3,
-            18,
-            10,
-            "This is a test for a long format text box. I am hoping that this works.",
-        )
+        // buffer.filled_border_box(buffer.width - 21, 1, 20, 11, Color::White, Color::LightBlue);
+        // buffer.text_color(
+        //     buffer.width - 20,
+        //     2,
+        //     "Hello World",
+        //     Color::White,
+        //     Color::LightBlue,
+        // );
+        // buffer.text_box(
+        //     buffer.width - 20,
+        //     3,
+        //     18,
+        //     10,
+        //     "This is a test for a long format text box. I am hoping that this works.",
+        // )
+        buffer
+            .center(30, 20)
+            .square()
+            .border(BorderType::Full)
+            .title("Test")
+            .draw();
     }
 
     fn update(&mut self, context: &mut AsciiUiContext) {
