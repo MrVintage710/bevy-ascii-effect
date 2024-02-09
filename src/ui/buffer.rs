@@ -6,6 +6,7 @@ use std::{rc::Rc, sync::Mutex};
 
 use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, TextOverflow};
 
+#[derive(Clone)]
 pub struct AsciiBuffer {
     surface: Rc<Mutex<Vec<AsciiCharacter>>>,
     surface_width: u32,
@@ -96,6 +97,10 @@ impl AsciiBuffer {
         for (i, c) in text.chars().enumerate() {
             self.set_character(x + i as u32, y, (c, text_color, bg_color))
         }
+    }
+    
+    pub fn bounds(&self) -> &AsciiBounds {
+        &self.bounds
     }
 
     fn calc_index(&self, x: u32, y: u32) -> usize {

@@ -24,7 +24,7 @@ use textwrap::Options;
 
 use crate::ascii::AsciiCamera;
 
-use self::buffer::AsciiBuffer;
+use self::buffer::{AsciiBounds, AsciiBuffer};
 
 pub struct AsciiUiPlugin;
 
@@ -40,7 +40,7 @@ impl Plugin for AsciiUiPlugin {
 
 #[derive(Default, Component)]
 pub struct AsciiUi {
-    nodes: Vec<Box<dyn AsciiUiNode + Send + Sync>>,
+    nodes: Vec<Arc<Mutex<Box<dyn AsciiUiNode + Send + Sync>>>>,
     is_dirty: bool,
 }
 
@@ -50,10 +50,10 @@ impl AsciiUi {
     }
 
     pub fn render(&self, width: u32, height: u32) -> Vec<u8> {
-        let mut buffer = AsciiBuffer::new(width, height);
+        let buffer = AsciiBuffer::new(width, height);
 
         for node in self.nodes.iter() {
-            node.render(&mut buffer);
+            node.lock().unwrap().render(&buffer);
         }
 
         buffer.as_byte_vec()
@@ -61,7 +61,7 @@ impl AsciiUi {
 
     pub fn add_node(&mut self, node: impl AsciiUiNode + Send + Sync + 'static) {
         self.is_dirty = true;
-        self.nodes.push(Box::new(node));
+        self.nodes.push(Arc::new(Mutex::new(Box::new(node))));
     }
 
     pub fn update_nodes<'w>(&mut self, cursor_pos : Option<(u32, u32)>, time : &Res<'w, Time>, keys : &Res<'w, Input<KeyCode>>) {
@@ -71,7 +71,7 @@ impl AsciiUi {
         let mut context = AsciiUiContext { ui: self, cursor_pos, time, key_input : keys};
 
         for node in nodes.iter_mut() {
-            node.update(&mut context);
+            node.lock().unwrap().update(&mut context);
         }
 
         self.nodes = nodes;
@@ -265,7 +265,7 @@ impl From<(char, Color, Color)> for AsciiCharacter {
 //=============================================================================
 
 pub trait AsciiUiNode {
-    fn render(&self, buffer: &mut AsciiBuffer);
+    fn render(&mut self, buffer: &AsciiBuffer);
 
     fn update(&mut self, context: &mut AsciiUiContext);
 }
@@ -282,8 +282,10 @@ fn update_ui_nodes(
         let cursor_pos = window.cursor_position();
         let target_res = camera.target_res();
         let target_cursor_pos = if let Some(cursor_pos) = cursor_pos {
-            let x = (cursor_pos.x / target_res.x).floor() as u32;
-            let y = (cursor_pos.y / target_res.y).floor() as u32;
+            // println!("{:?} | {:?}", target_res, cursor_pos);
+            let pixel_multiplier = (window.physical_width() as f32 / target_res.x) / 2.0;
+            let x = (cursor_pos.x / pixel_multiplier).floor() as u32;
+            let y = (cursor_pos.y / pixel_multiplier).floor() as u32;
             Some((x, y))
         } else {
             None
@@ -297,33 +299,43 @@ fn update_ui_nodes(
 }
 
 pub struct TestNode {
-    width : u32,
-    height : u32
+    dims : AsciiBounds,
+    color : Color
 }
 
 impl Default for TestNode {
     fn default() -> Self {
         TestNode {
-            width : 40,
-            height : 20
+            dims : AsciiBounds::from_dims(40, 20),
+            color : Color::Violet
         }
     }
 }
 
 impl AsciiUiNode for TestNode {
-    fn render(&self, buffer: &mut AsciiBuffer) {
-        let center = buffer.center(self.width, self.height);
+    fn render(&mut self, buffer: &AsciiBuffer) {
+        let center = buffer.center(self.dims.width, self.dims.height);
         
+        self.dims = center.clone().bounds;
         center
             .square()
             .border(BorderType::Full)
             .title("Centered Box")
-            .border_color(Color::Violet)
+            .border_color(self.color)
             .draw();
     }
 
     fn update(&mut self, context: &mut AsciiUiContext) {
-        println!("{:?}", context.time().delta());
+        let Some(cursor) = context.cursor_pos() else {return;};
+        println!("{:?}", cursor);
+        if self.dims.is_within(cursor.0, cursor.1) {
+            println!("Cursor is within bounds");
+            if self.color != Color::Red {context.mark_dirty()}
+            self.color = Color::Red;
+        } else {
+            if self.color != Color::Violet {context.mark_dirty()}
+            self.color = Color::Violet;
+        }
     }
 }
 
