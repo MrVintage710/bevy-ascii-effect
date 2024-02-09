@@ -128,6 +128,7 @@ impl ViewNode for AsciiShaderNode {
         let settings_uniforms = ascii_camera.buffer(
             render_context.render_device(),
             world.get_resource::<RenderQueue>().unwrap(),
+            view_target.main_texture().width(),
         );
 
         let Some(low_res_texture) = pixel_pipeline_resource.low_res_textures.get(&entity) else {

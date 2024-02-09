@@ -57,8 +57,8 @@ impl Default for AsciiCameraBundle {
 
 #[derive(Component, Clone, Reflect, InspectorOptions)]
 pub struct AsciiCamera {
-    #[inspector(min = 24.0)]
-    pub pixels_per_character: f32,
+    #[inspector(min = 1.0)]
+    pub screen_colummns: f32,
     pub should_render: bool,
     #[reflect(ignore)]
     target_resolution: Vec2,
@@ -67,7 +67,7 @@ pub struct AsciiCamera {
 impl Default for AsciiCamera {
     fn default() -> Self {
         AsciiCamera {
-            pixels_per_character: 24.0,
+            screen_colummns: 80.0,
             should_render: true,
             target_resolution: Vec2::ZERO,
         }
@@ -79,9 +79,11 @@ impl AsciiCamera {
         &self,
         device: &RenderDevice,
         queue: &RenderQueue,
+        width: u32,
     ) -> DynamicUniformBuffer<AsciiShaderSettingsBuffer> {
+        let pixels_per_character = self.screen_colummns / width as f32;
         let ascii_buffer = AsciiShaderSettingsBuffer {
-            pixels_per_character: self.pixels_per_character,
+            pixels_per_character,
             #[cfg(feature = "webgl2")]
             _webgl2_padding: Vec3::ZERO,
         };
@@ -142,9 +144,11 @@ fn update_target_resolution(
             RenderTarget::TextureView(_) => return,
         };
 
+        let pixels_per_character = (res.0 / ascii_camera.screen_colummns).floor();
+
         let target_resolution = Vec2::new(
-            (res.0 / ascii_camera.pixels_per_character).floor(),
-            (res.1 / ascii_camera.pixels_per_character).floor(),
+            (res.0 / pixels_per_character).floor(),
+            (res.1 / pixels_per_character).floor(),
         );
 
         ascii_camera.target_resolution = target_resolution
