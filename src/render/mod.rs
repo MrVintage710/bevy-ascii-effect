@@ -25,7 +25,7 @@ use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
 use crate::{
     ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
-    ui::{AsciiBuffer, AsciiUi},
+    ui::{buffer::AsciiBuffer, AsciiUi},
 };
 
 use self::{
