@@ -108,11 +108,9 @@ pub struct AsciiBuffer {
 
 impl AsciiBuffer {
     pub fn set_character(&self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
-        let x = self.x + x;
-        let y = self.y + y;
         if self.is_within(x, y) {
             let index = self.calc_index(x, y);
-            if (self.surface_width * self.surface_height) as usize > index {
+            if ((self.surface_width * self.surface_height) as usize) > index {
                 let mut surface = self.surface.lock().expect(
                     "There has been an error writing to the Ascii Overlay. Mutex is Poisoned.",
                 );
@@ -122,8 +120,6 @@ impl AsciiBuffer {
     }
 
     pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> Option<AsciiBuffer> {
-        let x = self.x + x;
-        let y = self.y + y;
         if self.is_within(x, y) {
             let width = self.width.saturating_sub(x).min(width);
             let height = self.height.saturating_sub(y).min(height);
@@ -147,10 +143,10 @@ impl AsciiBuffer {
             surface: self.surface.clone(),
             surface_width: self.surface_width,
             surface_height: self.surface_width,
-            width,
-            height,
-            x: self.width / 2 - width / 2,
-            y: self.height / 2 - height / 2,
+            width : width.min(self.width),
+            height : height.min(self.height),
+            x: ((self.width / 2) - (width / 2)).max(0),
+            y: ((self.height / 2) - (height / 2)).max(0),
         }
     }
 
@@ -165,105 +161,6 @@ impl AsciiBuffer {
             title_alignment: HorizontalAlignment::Left,
             title_overflow: TextOverflow::default(),
             border: BorderType::None,
-        }
-    }
-
-    pub fn filled_border_box(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-        border_color: Color,
-        fill_color: Color,
-    ) {
-        for h in 0..height {
-            for w in 0..width {
-                let pos_x = w + x;
-                let pos_y = h + y;
-                if w == 0 && h == 0 {
-                    self.set_character(
-                        pos_x,
-                        pos_y,
-                        (Character::LBorderNW, border_color, fill_color),
-                    );
-                } else if w == (width - 1) && h == 0 {
-                    self.set_character(
-                        pos_x,
-                        pos_y,
-                        (Character::LBorderNE, border_color, fill_color),
-                    )
-                } else if w == 0 && h == (height - 1) {
-                    self.set_character(
-                        pos_x,
-                        pos_y,
-                        (Character::LBorderSW, border_color, fill_color),
-                    )
-                } else if w == (width - 1) && h == (height - 1) {
-                    self.set_character(
-                        pos_x,
-                        pos_y,
-                        (Character::LBorderSE, border_color, fill_color),
-                    )
-                } else if w == 0 {
-                    self.set_character(pos_x, pos_y, (Character::BorderW, border_color, fill_color))
-                } else if w == (width - 1) {
-                    self.set_character(pos_x, pos_y, (Character::BorderE, border_color, fill_color))
-                } else if h == 0 {
-                    self.set_character(pos_x, pos_y, (Character::BorderN, border_color, fill_color))
-                } else if h == (height - 1) {
-                    self.set_character(pos_x, pos_y, (Character::BorderS, border_color, fill_color))
-                } else {
-                    self.set_character(pos_x, pos_y, fill_color)
-                }
-            }
-        }
-    }
-
-    pub fn text_box_color(
-        &mut self,
-        x: u32,
-        y: u32,
-        width: u32,
-        height: u32,
-        text: &str,
-        text_color: Color,
-        bg_color: Color,
-    ) {
-        let text = textwrap::wrap(text, Options::new(width as usize));
-
-        for row in 0..height {
-            if text.len() <= row as usize {
-                break;
-            }
-
-            let line = &text[row as usize];
-
-            if row != (height - 1) {
-                self.text_color(x, y + row, &line, text_color, bg_color);
-            } else {
-                let text = line.split_at(text.len() - 3);
-                self.text_color(x, y + row, &format!("{}...", text.0), text_color, bg_color);
-            }
-        }
-    }
-
-    pub fn text_box(&mut self, x: u32, y: u32, width: u32, height: u32, text: &str) {
-        let text = textwrap::wrap(text, Options::new(width as usize));
-
-        for row in 0..height {
-            if text.len() <= row as usize {
-                break;
-            }
-
-            let line = &text[row as usize];
-
-            if row != (height - 1) {
-                self.text(x, y + row, &line);
-            } else {
-                let text = line.split_at(text.len() - 3);
-                self.text(x, y + row, &format!("{}...", text.0));
-            }
         }
     }
 
@@ -286,6 +183,8 @@ impl AsciiBuffer {
     }
 
     fn is_within(&self, x: u32, y: u32) -> bool {
+        let x = self.x + x;
+        let y = self.y + y;
         x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
     }
 
@@ -369,6 +268,16 @@ impl<'b> AsciiBoxDrawer<'b> {
         }
 
         (character, self.border_color, self.bg_color).into()
+    }
+
+    pub fn title_alignment(mut self, alignment: HorizontalAlignment) -> Self {
+        self.title_alignment = alignment;
+        self
+    }
+
+    pub fn title_overflow(mut self, overflow: TextOverflow) -> Self {
+        self.title_overflow = overflow;
+        self
     }
 
     pub fn bg_color(mut self, bg_color: Color) -> Self {
@@ -585,26 +494,11 @@ pub struct TestNode;
 
 impl AsciiUiNode for TestNode {
     fn render(&self, buffer: &mut AsciiBuffer) {
-        // buffer.filled_border_box(buffer.width - 21, 1, 20, 11, Color::White, Color::LightBlue);
-        // buffer.text_color(
-        //     buffer.width - 20,
-        //     2,
-        //     "Hello World",
-        //     Color::White,
-        //     Color::LightBlue,
-        // );
-        // buffer.text_box(
-        //     buffer.width - 20,
-        //     3,
-        //     18,
-        //     10,
-        //     "This is a test for a long format text box. I am hoping that this works.",
-        // )
         buffer
-            .center(30, 20)
+            .center(40, 20)
             .square()
             .border(BorderType::Full)
-            .title("Test")
+            .title("Centered Box")
             .draw();
     }
 
