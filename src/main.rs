@@ -33,7 +33,7 @@ fn main() {
 pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut ascii_ui = AsciiUi::default();
 
-    ascii_ui.add_node(TestNode);
+    ascii_ui.add_node(TestNode::default());
 
     commands
         .spawn(AsciiCameraBundle::default())

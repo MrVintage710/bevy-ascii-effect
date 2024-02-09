@@ -18,9 +18,11 @@ use bevy::{
         },
         renderer::{RenderDevice, RenderQueue},
     },
-    window::WindowResized,
+    window::{PrimaryWindow, WindowResized},
 };
 use textwrap::Options;
+
+use crate::ascii::AsciiCamera;
 
 use self::buffer::AsciiBuffer;
 
@@ -48,9 +50,6 @@ impl AsciiUi {
     }
 
     pub fn render(&self, width: u32, height: u32) -> Vec<u8> {
-        let mut data: Vec<AsciiCharacter> =
-            vec![AsciiCharacter::default(); (width * height) as usize];
-
         let mut buffer = AsciiBuffer::new(width, height);
 
         for node in self.nodes.iter() {
@@ -65,10 +64,11 @@ impl AsciiUi {
         self.nodes.push(Box::new(node));
     }
 
-    pub fn update_nodes(&mut self) {
+    pub fn update_nodes<'w>(&mut self, cursor_pos : Option<(u32, u32)>, time : &Res<'w, Time>, keys : &Res<'w, Input<KeyCode>>) {
         self.is_dirty = false;
         let mut nodes = std::mem::take(&mut self.nodes);
-        let mut context = AsciiUiContext { ui: self };
+        
+        let mut context = AsciiUiContext { ui: self, cursor_pos, time, key_input : keys};
 
         for node in nodes.iter_mut() {
             node.update(&mut context);
@@ -78,15 +78,30 @@ impl AsciiUi {
     }
 }
 
-pub struct AsciiUiContext<'ui> {
+pub struct AsciiUiContext<'w, 'ui> {
     ui: &'ui mut AsciiUi,
+    cursor_pos: Option<(u32, u32)>,
+    time : &'ui Res<'w, Time>,
+    key_input : &'ui Res<'w, Input<KeyCode>>,
 }
 
-impl<'ui> AsciiUiContext<'ui> {
+impl<'w, 'ui> AsciiUiContext<'w, 'ui> {
     pub fn mark_dirty(&mut self) {
         self.ui.is_dirty = true;
     }
+    
+    pub fn cursor_pos(&self) -> Option<(u32, u32)> {
+        self.cursor_pos
+    }
+    
+    pub fn time(&self) -> &Time {
+        self.time
+    }
 }
+
+//=============================================================================
+//             Styling Constants
+//=============================================================================
 
 pub enum BorderType {
     Full,
@@ -256,23 +271,50 @@ pub trait AsciiUiNode {
 }
 
 fn update_ui_nodes(
-    mut ascii_ui: Query<&mut AsciiUi>,
-    mut window_resized: EventReader<WindowResized>,
+    mut ascii_ui: Query<(&mut AsciiUi, &AsciiCamera)>,
+    window_resized: EventReader<WindowResized>,
+    time : Res<Time>,
+    window : Query<&Window, With<PrimaryWindow>>,
+    key_input : Res<Input<KeyCode>>,
 ) {
-    for mut ui in ascii_ui.iter_mut() {
-        ui.update_nodes();
+    for (mut ui, camera) in ascii_ui.iter_mut() {
+        let window = window.single();
+        let cursor_pos = window.cursor_position();
+        let target_res = camera.target_res();
+        let target_cursor_pos = if let Some(cursor_pos) = cursor_pos {
+            let x = (cursor_pos.x / target_res.x).floor() as u32;
+            let y = (cursor_pos.y / target_res.y).floor() as u32;
+            Some((x, y))
+        } else {
+            None
+        };
+        ui.update_nodes(target_cursor_pos, &time, &key_input);
         if window_resized.len() > 0 {
             ui.is_dirty = true;
         }
     }
+    
 }
 
-pub struct TestNode;
+pub struct TestNode {
+    width : u32,
+    height : u32
+}
+
+impl Default for TestNode {
+    fn default() -> Self {
+        TestNode {
+            width : 40,
+            height : 20
+        }
+    }
+}
 
 impl AsciiUiNode for TestNode {
     fn render(&self, buffer: &mut AsciiBuffer) {
-        buffer
-            .center(40, 20)
+        let center = buffer.center(self.width, self.height);
+        
+        center
             .square()
             .border(BorderType::Full)
             .title("Centered Box")
@@ -281,7 +323,7 @@ impl AsciiUiNode for TestNode {
     }
 
     fn update(&mut self, context: &mut AsciiUiContext) {
-        // context.mark_dirty();
+        println!("{:?}", context.time().delta());
     }
 }
 

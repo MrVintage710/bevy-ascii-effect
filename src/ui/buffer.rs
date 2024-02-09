@@ -10,10 +10,7 @@ pub struct AsciiBuffer {
     surface: Rc<Mutex<Vec<AsciiCharacter>>>,
     surface_width: u32,
     surface_height: u32,
-    width: u32,
-    height: u32,
-    x: u32,
-    y: u32,
+    pub bounds : AsciiBounds,
 }
 
 impl AsciiBuffer {
@@ -21,19 +18,22 @@ impl AsciiBuffer {
        let data = vec![AsciiCharacter::default(); (width * height) as usize];
        AsciiBuffer {
            surface: Rc::new(Mutex::new(data)),
-           width, 
-           height,
-           x: 0,
-           y: 0,
+           bounds : AsciiBounds::new(0, 0, width, height),
            surface_width: width,
            surface_height: height,
        }
     }
     
     pub fn set_character(&self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
-        if self.is_within(x, y) {
+        if self.bounds.is_within_local(x, y) {
             let index = self.calc_index(x, y);
             if ((self.surface_width * self.surface_height) as usize) > index {
+                println!("{} * {} = {} | {}", 
+                    self.surface_width, 
+                    self.surface_height, 
+                    self.surface_width * self.surface_height,
+                    index
+                );
                 let mut surface = self.surface.lock().expect(
                     "There has been an error writing to the Ascii Overlay. Mutex is Poisoned.",
                 );
@@ -43,18 +43,15 @@ impl AsciiBuffer {
     }
 
     pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> Option<AsciiBuffer> {
-        if self.is_within(x, y) {
-            let width = self.width.saturating_sub(x).min(width);
-            let height = self.height.saturating_sub(y).min(height);
+        if self.bounds.is_within_local(x, y) {
+            let width = self.bounds.width.saturating_sub(x).min(width);
+            let height = self.bounds.height.saturating_sub(y).min(height);
 
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
                 surface_width: self.surface_width,
                 surface_height: self.surface_height,
-                width,
-                height,
-                x,
-                y,
+                bounds : AsciiBounds::new(x, y, width, height),
             });
         }
 
@@ -65,11 +62,13 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             surface_width: self.surface_width,
-            surface_height: self.surface_width,
-            width : width.min(self.width),
-            height : height.min(self.height),
-            x: ((self.width / 2) - (width / 2)).max(0),
-            y: ((self.height / 2) - (height / 2)).max(0),
+            surface_height: self.surface_height,
+            bounds : AsciiBounds::new(
+                ((self.bounds.width / 2) - (width / 2)).max(0),
+                ((self.bounds.height / 2) - (height / 2)).max(0),
+                width.min(self.bounds.width),
+                height.min(self.bounds.height),
+            ),
         }
     }
 
@@ -100,15 +99,9 @@ impl AsciiBuffer {
     }
 
     fn calc_index(&self, x: u32, y: u32) -> usize {
-        let x = self.x + x;
-        let y = self.y + y;
+        let x = self.bounds.x + x;
+        let y = self.bounds.y + y;
         (x + (y * self.surface_width)) as usize
-    }
-
-    fn is_within(&self, x: u32, y: u32) -> bool {
-        let x = self.x + x;
-        let y = self.y + y;
-        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
     }
 
     pub fn as_byte_vec(&self) -> Vec<u8> {
@@ -121,6 +114,48 @@ impl AsciiBuffer {
             .flatten()
             .collect();
         result
+    }
+}
+
+//=============================================================================
+//             Ascii Buffer Bounds
+//=============================================================================
+
+#[derive(Clone, Default)]
+pub struct AsciiBounds {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl AsciiBounds {
+    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
+        AsciiBounds {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+    
+    pub fn from_dims(width : u32, height : u32) -> Self {
+        AsciiBounds {
+            x : 0,
+            y : 0,
+            width,
+            height,
+        }
+    }
+
+    pub fn is_within(&self, x: u32, y: u32) -> bool {
+        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
+    }
+    
+    pub fn is_within_local(&self, x : u32, y : u32) -> bool {
+        let x = self.x + x;
+        let y = self.y + y;
+        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
     }
 }
 
@@ -142,37 +177,37 @@ pub struct AsciiBoxDrawer<'b> {
 
 impl<'b> AsciiBoxDrawer<'b> {
     pub fn draw(mut self) -> Option<AsciiBuffer> {
-        for y in 0..self.buffer.height {
-            for x in 0..self.buffer.width {
+        for y in 0..self.buffer.bounds.height {
+            for x in 0..self.buffer.bounds.width {
                 let character = self.calc_character(x, y);
                 self.buffer.set_character(x, y, character);
             }
         }
 
         self.buffer
-            .sub_buffer(1, 1, self.buffer.width - 2, self.buffer.height - 2)
+            .sub_buffer(1, 1, self.buffer.bounds.width - 2, self.buffer.bounds.height - 2)
     }
 
     fn calc_character(&mut self, x: u32, y: u32) -> AsciiCharacter {
-        let max_title_width = self.buffer.width as i32 - 4;
+        let max_title_width = self.buffer.bounds.width as i32 - 4;
         let character = self
             .border
-            .get_character(x, y, self.buffer.width, self.buffer.height);
+            .get_character(x, y, self.buffer.bounds.width, self.buffer.bounds.height);
         if max_title_width < 2 {
             return (character, self.border_color, self.bg_color).into();
         }
 
         if let Some(title) = &self.title {
-            if y == 0 && x >= 2 && x <= self.buffer.width - 2 {
+            if y == 0 && x >= 2 && x <= self.buffer.bounds.width - 2 {
                 let title_len = title.len().min(max_title_width as usize);
                 // let difference = title_len as i32 - max_title_width;
                 let x_start = match self.title_alignment {
                     HorizontalAlignment::Left => 2,
                     HorizontalAlignment::Center => {
-                        (self.buffer.width / 2 - title_len as u32 / 2).max(2)
+                        (self.buffer.bounds.width / 2 - title_len as u32 / 2).max(2)
                     }
                     HorizontalAlignment::Right => {
-                        (self.buffer.width as i32 - title_len as i32 - 2).max(2) as u32
+                        (self.buffer.bounds.width as i32 - title_len as i32 - 2).max(2) as u32
                     }
                 };
 
