@@ -1,10 +1,9 @@
+use std::{rc::Rc, sync::Mutex};
+use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow};
+
 //=============================================================================
 //             Ascii Buffer
 //=============================================================================
-
-use std::{rc::Rc, sync::Mutex};
-
-use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow};
 
 #[derive(Clone)]
 pub struct AsciiBuffer {
@@ -58,6 +57,19 @@ impl AsciiBuffer {
 
         None
     }
+    
+    pub fn top(&self, size : u32) -> (AsciiBuffer, Option<AsciiBuffer>) {
+        let mut top = self.clone();
+        if size < self.bounds.height {
+            let mut bottom = self.clone();
+            top.bounds.height = size;
+            bottom.bounds.y += size;
+            bottom.bounds.height -= size;
+            (top, Some(bottom))
+        } else {
+            (top, None)
+        }
+    }
 
     pub fn center(&self, width: u32, height: u32) -> AsciiBuffer {
         AsciiBuffer {
@@ -80,7 +92,7 @@ impl AsciiBuffer {
         }
         let mut buffers = Vec::new();
         let mut x = 0;
-        for i in 0..COUNT {
+        for _ in 0..COUNT {
             let buffer = AsciiBuffer {
                 surface: self.surface.clone(),
                 surface_width: self.surface_width,
@@ -89,6 +101,31 @@ impl AsciiBuffer {
             };
             buffers.push(buffer);
             x += width;
+        }
+        
+        if let Ok(buffer) = buffers.try_into() {
+            Some(buffer)
+        } else {
+            None
+        }
+    }
+    
+    pub fn horizontal_split<const COUNT : usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
+        let height = self.bounds.width / COUNT as u32;
+        if height == 0 {
+            return None;
+        }
+        let mut buffers = Vec::new();
+        let mut y = 0;
+        for _ in 0..COUNT {
+            let buffer = AsciiBuffer {
+                surface: self.surface.clone(),
+                surface_width: self.surface_width,
+                surface_height: self.surface_height,
+                bounds : AsciiBounds::new(self.bounds.x, self.bounds.y + y, self.bounds.width, height),
+            };
+            buffers.push(buffer);
+            y += height;
         }
         
         if let Ok(buffer) = buffers.try_into() {

@@ -368,14 +368,18 @@ impl AsciiUiNode for TestNode {
         let inner_square = center
             .square()
             .border(BorderType::Full)
-            .title("Centered Box")
+            .title("Test Box")
             .border_color(self.color)
             .draw();
         
         if let Some(inner_square) = inner_square {
-            if let Some(splits) = inner_square.vertical_split::<2>() {
-                splits[0].padding((0, 1, 0, 0)).text("This text should be on the left, and it should wrap to the next line.").wrap().draw();
-                splits[1].text("This text should be on the right, and it should wrap to the next line.").wrap().draw();
+            let (top, bottom) = inner_square.top(2);
+            top.padding((0, 0, 1, 0)).text("Centered Text").alignment(HorizontalAlignment::Center).draw();
+            if let Some(bottom) = bottom {
+                if let Some(splits) = bottom.vertical_split::<2>() {
+                    splits[0].padding((0, 1, 0, 0)).text("This text should be on the left, and it should wrap to the next line.").wrap().draw();
+                    splits[1].text("This text should be on the right, and it should wrap to the next line.").wrap().draw();
+                }
             }
         }
     }
