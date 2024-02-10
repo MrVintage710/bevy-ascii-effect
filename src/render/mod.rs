@@ -345,7 +345,6 @@ pub fn prepare_shader_textures(
         //Here we need to update the overlay textures:
         if let Some(overlay_buffer) = overlay_buffer {
             if let Some(overlay_texture) = ascii_shader_pipeline.overlay_textures.get(&entity) {
-                println!("Rendering to Overlay {}", overlay_buffer.0.len());
                 render_queue.write_texture(
                     overlay_texture.as_image_copy(),
                     &overlay_buffer.0,

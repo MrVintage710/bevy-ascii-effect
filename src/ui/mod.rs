@@ -145,9 +145,7 @@ impl BorderType {
 pub enum TextOverflow {
     #[default]
     Hidden,
-    Wrap,
     Elipses,
-    None,
 }
 
 #[derive(Default)]
@@ -164,6 +162,57 @@ pub enum VerticalAlignment {
     Top,
     Center,
     Bottom,
+}
+
+pub struct Padding {
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+    pub left: u32,
+}
+
+impl Default for Padding {
+    fn default() -> Self {
+        Padding {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+        }
+    }
+}
+
+impl From<u32> for Padding {
+    fn from(padding: u32) -> Self {
+        Padding {
+            top: padding,
+            right: padding,
+            bottom: padding,
+            left: padding,
+        }
+    }
+}
+
+impl From<(u32, u32)> for Padding {
+    fn from((top, right): (u32, u32)) -> Self {
+        Padding {
+            top,
+            right,
+            bottom: top,
+            left: right,
+        }
+    }
+}
+
+impl From<(u32, u32, u32, u32)> for Padding {
+    fn from((top, right, bottom, left): (u32, u32, u32, u32)) -> Self {
+        Padding {
+            top,
+            right,
+            bottom,
+            left,
+        }
+    }
 }
 
 //=============================================================================
@@ -282,7 +331,6 @@ fn update_ui_nodes(
         let cursor_pos = window.cursor_position();
         let target_res = camera.target_res();
         let target_cursor_pos = if let Some(cursor_pos) = cursor_pos {
-            // println!("{:?} | {:?}", target_res, cursor_pos);
             let pixel_multiplier = (window.physical_width() as f32 / target_res.x) / 2.0;
             let x = (cursor_pos.x / pixel_multiplier).floor() as u32;
             let y = (cursor_pos.y / pixel_multiplier).floor() as u32;
@@ -317,19 +365,24 @@ impl AsciiUiNode for TestNode {
         let center = buffer.center(self.dims.width, self.dims.height);
         
         self.dims = center.clone().bounds;
-        center
+        let inner_square = center
             .square()
             .border(BorderType::Full)
             .title("Centered Box")
             .border_color(self.color)
             .draw();
+        
+        if let Some(inner_square) = inner_square {
+            if let Some(splits) = inner_square.vertical_split::<2>() {
+                splits[0].padding((0, 1, 0, 0)).text("This text should be on the left, and it should wrap to the next line.").wrap().draw();
+                splits[1].text("This text should be on the right, and it should wrap to the next line.").wrap().draw();
+            }
+        }
     }
 
     fn update(&mut self, context: &mut AsciiUiContext) {
         let Some(cursor) = context.cursor_pos() else {return;};
-        println!("{:?}", cursor);
         if self.dims.is_within(cursor.0, cursor.1) {
-            println!("Cursor is within bounds");
             if self.color != Color::Red {context.mark_dirty()}
             self.color = Color::Red;
         } else {

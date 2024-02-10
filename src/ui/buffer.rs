@@ -4,7 +4,7 @@
 
 use std::{rc::Rc, sync::Mutex};
 
-use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, TextOverflow};
+use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow};
 
 #[derive(Clone)]
 pub struct AsciiBuffer {
@@ -29,12 +29,12 @@ impl AsciiBuffer {
         if self.bounds.is_within_local(x, y) {
             let index = self.calc_index(x, y);
             if ((self.surface_width * self.surface_height) as usize) > index {
-                println!("{} * {} = {} | {}", 
-                    self.surface_width, 
-                    self.surface_height, 
-                    self.surface_width * self.surface_height,
-                    index
-                );
+                // println!("{} * {} = {} | {}", 
+                //     self.surface_width, 
+                //     self.surface_height, 
+                //     self.surface_width * self.surface_height,
+                //     index
+                // );
                 let mut surface = self.surface.lock().expect(
                     "There has been an error writing to the Ascii Overlay. Mutex is Poisoned.",
                 );
@@ -45,8 +45,8 @@ impl AsciiBuffer {
 
     pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> Option<AsciiBuffer> {
         if self.bounds.is_within_local(x, y) {
-            let width = self.bounds.width.saturating_sub(x).min(width);
-            let height = self.bounds.height.saturating_sub(y).min(height);
+            // let width = self.bounds.width.saturating_sub(x).min(width);
+            // let height = self.bounds.height.saturating_sub(y).min(height);
 
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
@@ -72,6 +72,46 @@ impl AsciiBuffer {
             ),
         }
     }
+    
+    pub fn vertical_split<const COUNT : usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
+        let width = self.bounds.width / COUNT as u32;
+        if width == 0 {
+            return None;
+        }
+        let mut buffers = Vec::new();
+        let mut x = 0;
+        for i in 0..COUNT {
+            let buffer = AsciiBuffer {
+                surface: self.surface.clone(),
+                surface_width: self.surface_width,
+                surface_height: self.surface_height,
+                bounds : AsciiBounds::new(self.bounds.x + x, self.bounds().y, width, self.bounds.height),
+            };
+            buffers.push(buffer);
+            x += width;
+        }
+        
+        if let Ok(buffer) = buffers.try_into() {
+            Some(buffer)
+        } else {
+            None
+        }
+    }
+    
+    pub fn padding(&self, padding : impl Into<Padding>) -> AsciiBuffer {
+        let padding = padding.into();
+        let mut buffer = self.clone();
+        let horizontal_difference = buffer.bounds.width as i32 - padding.left as i32 - padding.right as i32;
+        let vertical_difference = buffer.bounds.height as i32 - padding.top as i32 - padding.bottom as i32;
+        if horizontal_difference <= 0 || vertical_difference <= 0 {
+            return buffer;
+        }
+        buffer.bounds.x += padding.left;
+        buffer.bounds.y += padding.top;
+        buffer.bounds.width -= padding.left + padding.right;
+        buffer.bounds.height -= padding.top + padding.bottom;
+        buffer
+    }
 
     pub fn square(&self) -> AsciiBoxDrawer {
         AsciiBoxDrawer {
@@ -86,16 +126,16 @@ impl AsciiBuffer {
             border: BorderType::None,
         }
     }
-
-    pub fn text(&mut self, x: u32, y: u32, text: &str) {
-        for (i, c) in text.chars().enumerate() {
-            self.set_character(x + i as u32, y, c)
-        }
-    }
-
-    pub fn text_color(&mut self, x: u32, y: u32, text: &str, text_color: Color, bg_color: Color) {
-        for (i, c) in text.chars().enumerate() {
-            self.set_character(x + i as u32, y, (c, text_color, bg_color))
+    
+    pub fn text(&self, text : &str) -> AsciiTextDrawer {
+        AsciiTextDrawer {
+            buffer: self,
+            text_color: Color::White,
+            bg_color: Color::Black,
+            text: text.to_string(),
+            alignment: HorizontalAlignment::Left,
+            overflow: TextOverflow::default(),
+            should_wrap: false
         }
     }
     
@@ -190,7 +230,12 @@ impl<'b> AsciiBoxDrawer<'b> {
         }
 
         self.buffer
-            .sub_buffer(1, 1, self.buffer.bounds.width - 2, self.buffer.bounds.height - 2)
+            .sub_buffer(
+                self.buffer.bounds.x + 1, 
+                self.buffer.bounds().y + 1, 
+                self.buffer.bounds.width - 2, 
+                self.buffer.bounds.height - 2
+            )
     }
 
     fn calc_character(&mut self, x: u32, y: u32) -> AsciiCharacter {
@@ -270,6 +315,81 @@ impl<'b> AsciiBoxDrawer<'b> {
 
     pub fn title(mut self, title: &str) -> Self {
         self.title = Some(title.to_string());
+        self
+    }
+}
+
+//=============================================================================
+//             Ascii Text Drawer
+//=============================================================================
+
+pub struct AsciiTextDrawer<'b> {
+    buffer: &'b AsciiBuffer,
+    text: String,
+    text_color: Color,
+    bg_color: Color,
+    alignment: HorizontalAlignment,
+    overflow: TextOverflow,
+    should_wrap: bool,
+}
+
+impl <'b> AsciiTextDrawer<'b> {
+    
+    pub fn draw(self) {
+        // println!("{}", self.buffer.bounds.width);
+        let lines : Vec<String> = if self.should_wrap {
+            let lines = textwrap::wrap(self.text.as_str(), self.buffer.bounds.width as usize);
+            lines.iter().map(|s| s.to_string()).collect()
+        } else {
+            self.text.lines().map(|s| s.to_string()).collect::<Vec<String>>()
+        };
+        
+        for line in 0..self.buffer.bounds.height as usize {
+            let Some(text) = lines.get(line) else {break};
+            
+            let start_x = match self.alignment {
+                HorizontalAlignment::Left => 0,
+                HorizontalAlignment::Center => self.buffer.bounds.width / 2 - text.len() as u32 / 2,
+                HorizontalAlignment::Right => self.buffer.bounds.width - text.len() as u32 - 1,
+            };
+            
+            for column in 0..self.buffer.bounds.width as usize {
+                let character : Character = if let Some(c) = text.chars().nth(column) {
+                    c.into()
+                } else {
+                    ' '.into()
+                };
+                self.buffer.set_character(
+                    start_x + column as u32, 
+                    line as u32, 
+                    (character, self.text_color, self.bg_color)
+                );
+            }
+        }
+    }
+    
+    pub fn bg_color(mut self, bg_color: Color) -> Self {
+        self.bg_color = bg_color;
+        self
+    }
+    
+    pub fn text_color(mut self, text_color: Color) -> Self {
+        self.text_color = text_color;
+        self
+    }
+    
+    pub fn alignment(mut self, alignment: HorizontalAlignment) -> Self {
+        self.alignment = alignment;
+        self
+    }
+    
+    pub fn overflow(mut self, overflow: TextOverflow) -> Self {
+        self.overflow = overflow;
+        self
+    }
+    
+    pub fn wrap(mut self) -> Self {
+        self.should_wrap = true;
         self
     }
 }
