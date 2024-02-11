@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod button;
 
 use std::{
     default,
@@ -24,7 +25,7 @@ use textwrap::Options;
 
 use crate::ascii::AsciiCamera;
 
-use self::buffer::{AsciiBounds, AsciiBuffer};
+use self::{buffer::{AsciiBounds, AsciiBuffer}, button::AsciiButton};
 
 pub struct AsciiUiPlugin;
 
@@ -64,11 +65,11 @@ impl AsciiUi {
         self.nodes.push(Arc::new(Mutex::new(Box::new(node))));
     }
 
-    pub fn update_nodes<'w>(&mut self, cursor_pos : Option<(u32, u32)>, time : &Res<'w, Time>, keys : &Res<'w, Input<KeyCode>>) {
+    pub fn update_nodes<'w>(&mut self, cursor_pos : Option<(u32, u32)>, time : &Res<'w, Time>, key_input : &Res<'w, Input<KeyCode>>, cursor_input : &Res<'w, Input<MouseButton>>) {
         self.is_dirty = false;
         let mut nodes = std::mem::take(&mut self.nodes);
         
-        let mut context = AsciiUiContext { ui: self, cursor_pos, time, key_input : keys};
+        let mut context = AsciiUiContext { ui: self, cursor_pos, time, key_input, cursor_input};
 
         for node in nodes.iter_mut() {
             node.lock().unwrap().update(&mut context);
@@ -83,6 +84,7 @@ pub struct AsciiUiContext<'w, 'ui> {
     cursor_pos: Option<(u32, u32)>,
     time : &'ui Res<'w, Time>,
     key_input : &'ui Res<'w, Input<KeyCode>>,
+    cursor_input : &'ui Res<'w, Input<MouseButton>>
 }
 
 impl<'w, 'ui> AsciiUiContext<'w, 'ui> {
@@ -96,6 +98,14 @@ impl<'w, 'ui> AsciiUiContext<'w, 'ui> {
     
     pub fn time(&self) -> &Time {
         self.time
+    }
+    
+    pub fn key_input(&self) -> &Input<KeyCode> {
+        self.key_input
+    }
+    
+    pub fn cursor_input(&self) -> &Input<MouseButton> {
+        self.cursor_input
     }
 }
 
@@ -325,6 +335,7 @@ fn update_ui_nodes(
     time : Res<Time>,
     window : Query<&Window, With<PrimaryWindow>>,
     key_input : Res<Input<KeyCode>>,
+    cursor_input : Res<Input<MouseButton>>,
 ) {
     for (mut ui, camera) in ascii_ui.iter_mut() {
         let window = window.single();
@@ -338,7 +349,7 @@ fn update_ui_nodes(
         } else {
             None
         };
-        ui.update_nodes(target_cursor_pos, &time, &key_input);
+        ui.update_nodes(target_cursor_pos, &time, &key_input, &cursor_input);
         if window_resized.len() > 0 {
             ui.is_dirty = true;
         }
@@ -348,14 +359,18 @@ fn update_ui_nodes(
 
 pub struct TestNode {
     dims : AsciiBounds,
-    color : Color
+    color : Color,
+    agree_btn : AsciiButton,
+    disagree_btn : AsciiButton,
 }
 
 impl Default for TestNode {
     fn default() -> Self {
         TestNode {
             dims : AsciiBounds::from_dims(40, 20),
-            color : Color::Violet
+            color : Color::Violet,
+            agree_btn : AsciiButton::new("Agree"),
+            disagree_btn : AsciiButton::new("Disagree"),
         }
     }
 }
@@ -373,26 +388,30 @@ impl AsciiUiNode for TestNode {
             .draw();
         
         if let Some(inner_square) = inner_square {
-            let (top, bottom) = inner_square.top(2);
-            top.padding((0, 0, 1, 0)).text("Centered Text").alignment(HorizontalAlignment::Center).draw();
+            let (top, bottom) = inner_square.top(3);
+            top.padding((0, 0, 1, 0)).text("Are you sure that you want to continue?").horizontal_alignment(HorizontalAlignment::Center).wrap().draw();
             if let Some(bottom) = bottom {
                 if let Some(splits) = bottom.vertical_split::<2>() {
-                    splits[0].padding((0, 1, 0, 0)).text("This text should be on the left, and it should wrap to the next line.").wrap().draw();
-                    splits[1].text("This text should be on the right, and it should wrap to the next line.").wrap().draw();
+                    self.agree_btn.render(&splits[0].padding((3, 1, 3, 1)));
+                    self.disagree_btn.render(&splits[1].padding((3, 1, 3, 1)));
+                    // splits[0].padding((0, 1, 0, 0)).text("This text should be on the left, and it should wrap to the next line.").wrap().draw();
+                    // splits[1].text("This text should be on the right, and it should wrap to the next line.").wrap().draw();
                 }
             }
         }
     }
 
     fn update(&mut self, context: &mut AsciiUiContext) {
-        let Some(cursor) = context.cursor_pos() else {return;};
-        if self.dims.is_within(cursor.0, cursor.1) {
-            if self.color != Color::Red {context.mark_dirty()}
-            self.color = Color::Red;
-        } else {
-            if self.color != Color::Violet {context.mark_dirty()}
-            self.color = Color::Violet;
-        }
+        // let Some(cursor) = context.cursor_pos() else {return;};
+        // if self.dims.is_within(cursor.0, cursor.1) {
+        //     if self.color != Color::Red {context.mark_dirty()}
+        //     self.color = Color::Red;
+        // } else {
+        //     if self.color != Color::Violet {context.mark_dirty()}
+        //     self.color = Color::Violet;
+        // }
+        self.agree_btn.update(context);
+        self.disagree_btn.update(context);
     }
 }
 

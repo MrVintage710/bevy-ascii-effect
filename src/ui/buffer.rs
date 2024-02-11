@@ -1,5 +1,7 @@
 use std::{rc::Rc, sync::Mutex};
-use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow};
+use bevy::app::Startup;
+
+use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
 
 //=============================================================================
 //             Ascii Buffer
@@ -43,7 +45,7 @@ impl AsciiBuffer {
     }
 
     pub fn sub_buffer(&self, x: u32, y: u32, width: u32, height: u32) -> Option<AsciiBuffer> {
-        if self.bounds.is_within_local(x, y) {
+        if self.bounds.is_within(x, y) {
             // let width = self.bounds.width.saturating_sub(x).min(width);
             // let height = self.bounds.height.saturating_sub(y).min(height);
 
@@ -170,7 +172,8 @@ impl AsciiBuffer {
             text_color: Color::White,
             bg_color: Color::Black,
             text: text.to_string(),
-            alignment: HorizontalAlignment::Left,
+            horizontal_alignment: HorizontalAlignment::Left,
+            vertical_alignment: VerticalAlignment::Top,
             overflow: TextOverflow::default(),
             should_wrap: false
         }
@@ -269,7 +272,7 @@ impl<'b> AsciiBoxDrawer<'b> {
         self.buffer
             .sub_buffer(
                 self.buffer.bounds.x + 1, 
-                self.buffer.bounds().y + 1, 
+                self.buffer.bounds.y + 1, 
                 self.buffer.bounds.width - 2, 
                 self.buffer.bounds.height - 2
             )
@@ -365,7 +368,8 @@ pub struct AsciiTextDrawer<'b> {
     text: String,
     text_color: Color,
     bg_color: Color,
-    alignment: HorizontalAlignment,
+    horizontal_alignment: HorizontalAlignment,
+    vertical_alignment: VerticalAlignment,
     overflow: TextOverflow,
     should_wrap: bool,
 }
@@ -384,13 +388,19 @@ impl <'b> AsciiTextDrawer<'b> {
         for line in 0..self.buffer.bounds.height as usize {
             let Some(text) = lines.get(line) else {break};
             
-            let start_x = match self.alignment {
+            let start_x = match self.horizontal_alignment {
                 HorizontalAlignment::Left => 0,
                 HorizontalAlignment::Center => self.buffer.bounds.width / 2 - text.len() as u32 / 2,
                 HorizontalAlignment::Right => self.buffer.bounds.width - text.len() as u32 - 1,
             };
             
-            for column in 0..self.buffer.bounds.width as usize {
+            let start_y = match self.vertical_alignment {
+                VerticalAlignment::Top => 0,
+                VerticalAlignment::Center => self.buffer.bounds.height / 2 - lines.len() as u32 / 2,
+                VerticalAlignment::Bottom => self.buffer.bounds.height - lines.len() as u32 - 1,
+            };
+            
+            for column in 0..(self.buffer.bounds.width - 1) as usize {
                 let character : Character = if let Some(c) = text.chars().nth(column) {
                     c.into()
                 } else {
@@ -398,7 +408,7 @@ impl <'b> AsciiTextDrawer<'b> {
                 };
                 self.buffer.set_character(
                     start_x + column as u32, 
-                    line as u32, 
+                    start_y + line as u32, 
                     (character, self.text_color, self.bg_color)
                 );
             }
@@ -415,8 +425,8 @@ impl <'b> AsciiTextDrawer<'b> {
         self
     }
     
-    pub fn alignment(mut self, alignment: HorizontalAlignment) -> Self {
-        self.alignment = alignment;
+    pub fn horizontal_alignment(mut self, alignment: HorizontalAlignment) -> Self {
+        self.horizontal_alignment = alignment;
         self
     }
     
@@ -427,6 +437,11 @@ impl <'b> AsciiTextDrawer<'b> {
     
     pub fn wrap(mut self) -> Self {
         self.should_wrap = true;
+        self
+    }
+    
+    pub fn vertical_alignment(mut self, alignment: VerticalAlignment) -> Self {
+        self.vertical_alignment = alignment;
         self
     }
 }
