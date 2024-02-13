@@ -25,7 +25,7 @@ use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
 use crate::{
     ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
-    ui::{buffer::AsciiBuffer, AsciiUi},
+    ui::{buffer::{AsciiBounds, AsciiBuffer, AsciiUiSurface}, node::AsciiUiNode, AsciiUi},
 };
 
 use self::{
@@ -249,22 +249,52 @@ fn pixel_pass(
 
 pub fn extract_camera(
     mut commands: Commands,
-    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>)>>,
+    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&Children>)>>,
+    ui_elements: Extract<Query<(&AsciiUiNode, Option<&Children>)>>,
     mut has_rendered: Local<bool>,
 ) {
-    for (entity, camera, pixel_camera, ascii_ui) in &cameras {
+    for (entity, camera, pixel_camera, ascii_ui, children) in &cameras {
         if camera.is_active && pixel_camera.should_render {
             let mut entity = commands.get_or_spawn(entity);
             entity.insert(pixel_camera.clone());
+            
+            let surface = AsciiUiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
 
             if let Some(ascii_ui) = ascii_ui {
                 if ascii_ui.is_dirty() || !*has_rendered {
-                    let target_res = pixel_camera.target_res();
-                    let buffer = ascii_ui.render(target_res.x as u32, target_res.y as u32);
-                    entity.insert(OverlayBuffer(buffer));
-                    *has_rendered = true;
+                    if let Some(children) = children {
+                        for child in children.iter() {
+                            render_ui_recursive(*child, &surface, &ui_elements, None);
+                        }
+                    }
                 }
+                
+                // if ascii_ui.is_dirty() || !*has_rendered {
+                //     let target_res = pixel_camera.target_res();
+                //     let buffer = ascii_ui.render(target_res.x as u32, target_res.y as u32);
+                //     entity.insert(OverlayBuffer(buffer));
+                //     *has_rendered = true;
+                // }
             }
+        }
+    }
+}
+
+fn render_ui_recursive(entity : Entity, surface : &AsciiUiSurface, nodes : &Extract<Query<(&AsciiUiNode, Option<&Children>)>>, last_bounds : Option<&AsciiBounds>) {
+    let Ok((node, children)) = nodes.get(entity) else {return};
+    let bounds = if let Some(last_bounds) = last_bounds {
+        node.bounds().transform_child(&last_bounds)
+    } else {
+        node.bounds().clone()
+    };
+    if bounds.width <= 0 || bounds.height <= 0 {return}
+    
+    let buffer = AsciiBuffer::new(surface, &bounds);
+    node.render(&buffer);
+    
+    if let Some(children) = children {
+        for child in children.iter() {
+            render_ui_recursive(*child, surface, nodes, Some(&bounds))
         }
     }
 }

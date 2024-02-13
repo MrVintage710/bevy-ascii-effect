@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Mutex};
+use std::{rc::Rc, sync::{Arc, Mutex}};
 use bevy::app::Startup;
 
 use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
@@ -9,38 +9,21 @@ use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, P
 
 #[derive(Clone)]
 pub struct AsciiBuffer {
-    surface: Rc<Mutex<Vec<AsciiCharacter>>>,
-    surface_width: u32,
-    surface_height: u32,
+    surface: AsciiUiSurface,
     pub bounds : AsciiBounds,
 }
 
 impl AsciiBuffer {
-    pub fn new(width : u32, height : u32) -> Self {
-       let data = vec![AsciiCharacter::default(); (width * height) as usize];
+    pub fn new(surface : &AsciiUiSurface, bounds : &AsciiBounds) -> Self {
        AsciiBuffer {
-           surface: Rc::new(Mutex::new(data)),
-           bounds : AsciiBounds::new(0, 0, width, height),
-           surface_width: width,
-           surface_height: height,
+           surface: surface.clone(),
+           bounds: bounds.clone(),
        }
     }
     
     pub fn set_character(&self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
         if self.bounds.is_within_local(x, y) {
-            let index = self.calc_index(x, y);
-            if ((self.surface_width * self.surface_height) as usize) > index {
-                // println!("{} * {} = {} | {}", 
-                //     self.surface_width, 
-                //     self.surface_height, 
-                //     self.surface_width * self.surface_height,
-                //     index
-                // );
-                let mut surface = self.surface.lock().expect(
-                    "There has been an error writing to the Ascii Overlay. Mutex is Poisoned.",
-                );
-                surface[index] = character.into();
-            }
+            self.surface.set_character(self.bounds.x + x, self.bounds.y + y, character.into());
         }
     }
 
@@ -51,8 +34,6 @@ impl AsciiBuffer {
 
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
-                surface_width: self.surface_width,
-                surface_height: self.surface_height,
                 bounds : AsciiBounds::new(x, y, width, height),
             });
         }
@@ -76,8 +57,6 @@ impl AsciiBuffer {
     pub fn center(&self, width: u32, height: u32) -> AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
-            surface_width: self.surface_width,
-            surface_height: self.surface_height,
             bounds : AsciiBounds::new(
                 ((self.bounds.width / 2) - (width / 2)).max(0),
                 ((self.bounds.height / 2) - (height / 2)).max(0),
@@ -97,8 +76,6 @@ impl AsciiBuffer {
         for _ in 0..COUNT {
             let buffer = AsciiBuffer {
                 surface: self.surface.clone(),
-                surface_width: self.surface_width,
-                surface_height: self.surface_height,
                 bounds : AsciiBounds::new(self.bounds.x + x, self.bounds().y, width, self.bounds.height),
             };
             buffers.push(buffer);
@@ -122,8 +99,6 @@ impl AsciiBuffer {
         for _ in 0..COUNT {
             let buffer = AsciiBuffer {
                 surface: self.surface.clone(),
-                surface_width: self.surface_width,
-                surface_height: self.surface_height,
                 bounds : AsciiBounds::new(self.bounds.x, self.bounds.y + y, self.bounds.width, height),
             };
             buffers.push(buffer);
@@ -182,18 +157,42 @@ impl AsciiBuffer {
     pub fn bounds(&self) -> &AsciiBounds {
         &self.bounds
     }
+}
 
-    fn calc_index(&self, x: u32, y: u32) -> usize {
-        let x = self.bounds.x + x;
-        let y = self.bounds.y + y;
-        (x + (y * self.surface_width)) as usize
+//=============================================================================
+//             Ascii UiSurface
+//=============================================================================
+
+#[derive(Clone)]
+pub struct AsciiUiSurface {
+    width : u32,
+    height : u32,
+    data : Arc<Mutex<Vec<AsciiCharacter>>>,
+}
+
+impl AsciiUiSurface {
+    pub fn new(width : u32, height : u32) -> Self {
+        let data = vec![AsciiCharacter::default(); (width * height) as usize];
+        Self { width, height, data : Arc::new(Mutex::new(data)) }
     }
-
+    
+    pub fn set_character(&self, x : u32, y : u32, character : AsciiCharacter) {
+        let Ok(mut data) = self.data.lock() else {return};
+        let index = self.calc_index(x, y);
+        if index < data.len() {
+            (*data)[index] = character;
+        }
+    }
+    
+    fn calc_index(&self, x: u32, y: u32) -> usize {
+        (x + (y * self.width)) as usize
+    }
+    
     pub fn as_byte_vec(&self) -> Vec<u8> {
         let result = self
-            .surface
+            .data
             .lock()
-            .expect("Error while rendering Ascii overlay.")
+            .expect("Error while writing surface: data is poisoned.")
             .iter()
             .map(|value| value.into_u8())
             .flatten()
@@ -241,6 +240,15 @@ impl AsciiBounds {
         let x = self.x + x;
         let y = self.y + y;
         x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
+    }
+    
+    pub fn transform_child(&self, child : &AsciiBounds) -> AsciiBounds {
+        AsciiBounds {
+            x : self.x + child.x,
+            y : self.y + child.y,
+            width : child.width.min(self.width - child.x),
+            height : child.height.min(self.height - child.y),
+        }
     }
 }
 

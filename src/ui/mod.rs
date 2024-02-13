@@ -1,5 +1,7 @@
 pub mod buffer;
 pub mod button;
+pub mod node;
+pub mod command;
 
 use std::{
     default,
@@ -50,15 +52,15 @@ impl AsciiUi {
         self.is_dirty
     }
 
-    pub fn render(&self, width: u32, height: u32) -> Vec<u8> {
-        let buffer = AsciiBuffer::new(width, height);
+    // pub fn render(&self, width: u32, height: u32) -> Vec<u8> {
+    //     let buffer = AsciiBuffer::new(width, height);
 
-        for node in self.nodes.iter() {
-            node.lock().unwrap().render(&buffer);
-        }
+    //     for node in self.nodes.iter() {
+    //         node.lock().unwrap().render(&buffer);
+    //     }
 
-        buffer.as_byte_vec()
-    }
+    //     buffer.as_byte_vec()
+    // }
 
     pub fn add_node(&mut self, node: impl AsciiUiNode + Send + Sync + 'static) {
         self.is_dirty = true;
@@ -354,7 +356,6 @@ fn update_ui_nodes(
             ui.is_dirty = true;
         }
     }
-    
 }
 
 pub struct TestNode {
