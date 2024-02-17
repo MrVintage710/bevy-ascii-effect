@@ -1,7 +1,5 @@
-use std::{rc::Rc, sync::{Arc, Mutex}};
-use bevy::app::Startup;
-
-use super::{AsciiCharacter, BorderType, Character, Color, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
+use std::sync::{Arc, Mutex};
+use super::{character::{AsciiCharacter, Color}, node::AsciiUiLayout, BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
 
 //=============================================================================
 //             Ascii Buffer
@@ -242,12 +240,49 @@ impl AsciiBounds {
         x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
     }
     
-    pub fn transform_child(&self, child : &AsciiBounds) -> AsciiBounds {
+    pub fn relative(&self, child : &AsciiBounds) -> AsciiBounds {
         AsciiBounds {
             x : self.x + child.x,
             y : self.y + child.y,
             width : child.width.min(self.width - child.x),
             height : child.height.min(self.height - child.y),
+        }
+    }
+    
+    pub fn from_layout(&self, layout : &AsciiUiLayout) -> AsciiBounds {
+        match layout {
+            AsciiUiLayout::Absolute(bounds) => bounds.clone(),
+            AsciiUiLayout::Relative(bounds) => self.relative(bounds),
+            AsciiUiLayout::Align(width, height, horizontal_alignment, vertical_alignment) => {
+                let x = match horizontal_alignment {
+                    HorizontalAlignment::Left => self.x,
+                    HorizontalAlignment::Center => self.x + (self.width / 2) - (width / 2),
+                    HorizontalAlignment::Right => self.x + self.width - width,
+                };
+                let y = match vertical_alignment {
+                    VerticalAlignment::Top => self.y,
+                    VerticalAlignment::Center => self.y + (self.height / 2) - (height / 2),
+                    VerticalAlignment::Bottom => self.y + self.height - height,
+                };
+                AsciiBounds {
+                    x,
+                    y,
+                    width : *width,
+                    height : *height,
+                }
+            },
+            AsciiUiLayout::VerticalSlice(slice, max_slices) => {
+                let width = self.width as f32 / *max_slices as f32;
+                let x = width * *slice as f32;
+                
+                AsciiBounds {
+                    x : x as u32,
+                    y : self.y,
+                    width : width as u32,
+                    height : self.height,
+                }
+            },
+            AsciiUiLayout::HorizontalSlice(_, _) => todo!(),
         }
     }
 }

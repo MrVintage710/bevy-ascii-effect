@@ -13,7 +13,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
-use ui::{AsciiUi, TestNode};
+use ui::{buffer::{AsciiBounds, AsciiBuffer}, button::AsciiButton, command::AsciiUiCommandExtention, AsciiUi};
 
 fn main() {
     App::new()
@@ -33,13 +33,18 @@ fn main() {
 pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut ascii_ui = AsciiUi::default();
 
-    ascii_ui.add_node(TestNode::default());
+    // ascii_ui.add_node(TestNode::default());
 
-    commands
+    let camera = commands
         .spawn(AsciiCameraBundle::default())
         .insert(ascii_ui)
-        .insert(PanOrbitCamera::default());
+        .insert(PanOrbitCamera::default())
+        .id();
 
+    commands
+        .ascii_ui(camera)
+        .absolute(AsciiBounds::from_dims(40, 30), AsciiButton);
+    
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             shadows_enabled: true,
@@ -72,5 +77,5 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(SceneBundle {
         scene: asset_server.load("Skull.glb#Scene0"),
         ..default()
-    });
+    }); 
 }

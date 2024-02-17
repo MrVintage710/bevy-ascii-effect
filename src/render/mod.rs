@@ -252,49 +252,47 @@ pub fn extract_camera(
     cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&Children>)>>,
     ui_elements: Extract<Query<(&AsciiUiNode, Option<&Children>)>>,
     mut has_rendered: Local<bool>,
+    mut last_surface : Local<Vec<u8>>
 ) {
     for (entity, camera, pixel_camera, ascii_ui, children) in &cameras {
         if camera.is_active && pixel_camera.should_render {
             let mut entity = commands.get_or_spawn(entity);
             entity.insert(pixel_camera.clone());
             
-            let surface = AsciiUiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
-
+            
             if let Some(ascii_ui) = ascii_ui {
+                
                 if ascii_ui.is_dirty() || !*has_rendered {
+                    let surface = AsciiUiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
                     if let Some(children) = children {
                         for child in children.iter() {
-                            render_ui_recursive(*child, &surface, &ui_elements, None);
+                            render_ui_recursive(*child, &surface, &ui_elements);
                         }
                     }
+                    
+                    *last_surface = surface.as_byte_vec();
+                    *has_rendered = true;
                 }
                 
-                // if ascii_ui.is_dirty() || !*has_rendered {
-                //     let target_res = pixel_camera.target_res();
-                //     let buffer = ascii_ui.render(target_res.x as u32, target_res.y as u32);
-                //     entity.insert(OverlayBuffer(buffer));
-                //     *has_rendered = true;
-                // }
+                if last_surface.len() > 0 {
+                    entity.insert(OverlayBuffer(last_surface.clone()));
+                }
             }
         }
     }
 }
 
-fn render_ui_recursive(entity : Entity, surface : &AsciiUiSurface, nodes : &Extract<Query<(&AsciiUiNode, Option<&Children>)>>, last_bounds : Option<&AsciiBounds>) {
+fn render_ui_recursive(entity : Entity, surface : &AsciiUiSurface, nodes : &Extract<Query<(&AsciiUiNode, Option<&Children>)>>) {
+    println!("Rendering Child {:?}", entity);
     let Ok((node, children)) = nodes.get(entity) else {return};
-    let bounds = if let Some(last_bounds) = last_bounds {
-        node.bounds().transform_child(&last_bounds)
-    } else {
-        node.bounds().clone()
-    };
-    if bounds.width <= 0 || bounds.height <= 0 {return}
+    if node.bounds.width <= 0 || node.bounds.height <= 0 {return}
     
-    let buffer = AsciiBuffer::new(surface, &bounds);
+    let buffer = AsciiBuffer::new(surface, &node.bounds);
     node.render(&buffer);
     
     if let Some(children) = children {
         for child in children.iter() {
-            render_ui_recursive(*child, surface, nodes, Some(&bounds))
+            render_ui_recursive(*child, surface, nodes)
         }
     }
 }
