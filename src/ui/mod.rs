@@ -178,6 +178,8 @@ fn update_bounds(
                calc_bounds(*child, &bounds, &mut map, &nodes);
            }
            
+           println!("{:?}", map);
+           
            for (entity, mut node, _) in nodes.iter_mut() {
                if let Some(bounds) = map.remove(&entity) {
                    node.bounds = bounds;
@@ -190,13 +192,13 @@ fn update_bounds(
 
 fn calc_bounds(current : Entity, last_bound: &AsciiBounds, map : &mut HashMap<Entity, AsciiBounds>, nodes : &Query<(Entity, &mut AsciiUiNode, Option<&Children>)>) {
     if let Ok((_, node, children)) = nodes.get(current) {
+        let bound = last_bound.from_layout(node.layout());
         if let Some(children) = children {
             for child in children.iter() {
-                let bound = last_bound.from_layout(node.layout());
                 calc_bounds(*child, &bound, map, nodes);
-                map.insert(current.clone(), bound);
             }
         }
+        map.insert(current.clone(), bound);
     }
 }
 

@@ -203,7 +203,7 @@ impl AsciiUiSurface {
 //             Ascii Buffer Bounds
 //=============================================================================
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct AsciiBounds {
     pub x: u32,
     pub y: u32,

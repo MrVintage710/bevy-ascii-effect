@@ -13,7 +13,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
-use ui::{buffer::{AsciiBounds, AsciiBuffer}, button::AsciiButton, command::AsciiUiCommandExtention, AsciiUi};
+use ui::{buffer::{AsciiBounds, AsciiBuffer}, button::AsciiButton, command::AsciiUiCommandExtention, AsciiUi, HorizontalAlignment, VerticalAlignment};
 
 fn main() {
     App::new()
@@ -43,7 +43,7 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands
         .ascii_ui(camera)
-        .absolute(AsciiBounds::from_dims(40, 30), AsciiButton);
+        .aligned(20, 15, HorizontalAlignment::Center, VerticalAlignment::Center,  AsciiButton::from_string("Test"));
     
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
