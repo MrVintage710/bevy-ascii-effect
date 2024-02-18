@@ -433,27 +433,24 @@ impl <'b> AsciiTextDrawer<'b> {
             
             let start_x = match self.horizontal_alignment {
                 HorizontalAlignment::Left => 0,
-                HorizontalAlignment::Center => self.buffer.bounds.width / 2 - text.len() as u32 / 2,
+                HorizontalAlignment::Center => (self.buffer.bounds.width as f32 / 2.0 - text.len() as f32 / 2.0).floor() as u32,
                 HorizontalAlignment::Right => self.buffer.bounds.width - text.len() as u32 - 1,
             };
             
             let start_y = match self.vertical_alignment {
                 VerticalAlignment::Top => 0,
-                VerticalAlignment::Center => self.buffer.bounds.height / 2 - lines.len() as u32 / 2,
+                VerticalAlignment::Center => (self.buffer.bounds.height as f32 / 2.0 - lines.len() as f32 / 2.0).floor() as u32,
                 VerticalAlignment::Bottom => self.buffer.bounds.height - lines.len() as u32 - 1,
             };
             
             for column in 0..(self.buffer.bounds.width - 1) as usize {
-                let character : Character = if let Some(c) = text.chars().nth(column) {
-                    c.into()
-                } else {
-                    ' '.into()
-                };
-                self.buffer.set_character(
-                    start_x + column as u32, 
-                    start_y + line as u32, 
-                    (character, self.text_color, self.bg_color)
-                );
+                if let Some(c) = text.chars().nth(column) {
+                    self.buffer.set_character(
+                        start_x + column as u32, 
+                        start_y + line as u32, 
+                        (c, self.text_color, self.bg_color)
+                    );
+                }
             }
         }
     }
