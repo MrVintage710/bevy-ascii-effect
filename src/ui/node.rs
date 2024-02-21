@@ -57,8 +57,17 @@ impl AsciiUiNode {
         }
     }
     
+    pub fn is_of_type(&self, type_name: &str) -> bool {
+        self.component.name() == type_name
+    }
+    
     pub fn layout(&self) -> &AsciiUiLayout {
         &self.layout
+    }
+    
+    pub fn set_layout(&mut self, layout : AsciiUiLayout) {
+        self.layout = layout;
+        self.is_dirty = true;
     }
     
     pub fn render(&self, buffer : &AsciiBuffer) {

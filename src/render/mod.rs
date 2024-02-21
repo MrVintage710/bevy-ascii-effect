@@ -261,7 +261,6 @@ pub fn extract_camera(
             
             
             if let Some(ascii_ui) = ascii_ui {
-                
                 if ascii_ui.is_dirty() || !*has_rendered {
                     let surface = AsciiUiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
                     if let Some(children) = children {

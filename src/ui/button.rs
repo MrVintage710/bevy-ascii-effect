@@ -1,8 +1,6 @@
-use bevy::input::mouse::MouseButton;
+use bevy::{ecs::system::Query, input::mouse::MouseButton};
 
 use super::{buffer::{AsciiBounds, AsciiBuffer}, character::Color, node::AsciiUiComponent, AsciiUiNode, BorderType, HorizontalAlignment, VerticalAlignment};
-
-
 
 pub struct AsciiButton {
     bg_color: Color,
@@ -12,6 +10,8 @@ pub struct AsciiButton {
 }
 
 impl AsciiButton {
+    pub const ID : &'static str = "BUTTON";
+    
     pub fn from_string(text : &str) -> Self {
         AsciiButton {
             bg_color : Color::Black,
@@ -24,7 +24,7 @@ impl AsciiButton {
 
 impl AsciiUiComponent for AsciiButton {
     fn name(&self) -> &str {
-        "Button"
+        Self::ID
     }
     
     fn render(&self, buffer: &AsciiBuffer) {
