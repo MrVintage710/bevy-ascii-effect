@@ -51,7 +51,7 @@ pub fn extract_ascii_ui<C : AsciiComponent>(
     mut ascii_cameras: Query<(Entity, &AsciiCamera, &mut OverlayBuffer, Option<&RenderLayers>)>,
     ui_elements: Extract<Query<(&AsciiNode, &AsciiGlobalBounds, &C, Option<&RenderLayers>)>>,
 ) {
-    println!("Extracting Ascii UI | {}, {}", ascii_cameras.iter().count(), ui_elements.iter().count());
+    // println!("Extracting Ascii UI | {}, {}", ascii_cameras.iter().count(), ui_elements.iter().count());
     for (cam_entity, node, mut buffer, camera_render_layers) in ascii_cameras.iter_mut() {
         for (node, global_bounds, component, component_render_layer) in ui_elements.iter() {
             match (component_render_layer, camera_render_layers) {
@@ -70,7 +70,7 @@ pub fn extract_ascii_ui<C : AsciiComponent>(
             let surface = &buffer.0;
             let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds);
             
-            println!("Rendering component");
+            // println!("Rendering component");
             component.render(&mut buffer);
         }
     }

@@ -15,7 +15,56 @@ impl Plugin for AsciiBoundsPlugin {
         app
             .register_type::<AsciiBounds>()
             .register_type::<AsciiGlobalBounds>()
-            .add_systems(Update, update_bounds);
+            .add_systems(PostUpdate, (mark_bounds_dirty, update_bounds).chain());
+    }
+}
+
+pub fn mark_bounds_dirty(
+    mut changed_bounds : Query<(Entity, &mut AsciiGlobalBounds, Ref<AsciiBounds>, Option<&Children>)>
+) {
+    
+    let entities = changed_bounds.iter().filter_map(|value| {
+        if value.2.is_changed() {
+            Some(value.0)
+        } else {
+            None
+        }
+    }).collect::<Vec<_>>();
+    
+    let mut dirty = Vec::new();
+    
+    if !entities.is_empty() { println!("Updating Children") }
+    
+    for entity in entities {
+        let mut children = Vec::new();
+        get_children(entity, &mut children, &changed_bounds);
+        dirty.append(&mut children);
+        dirty.push(entity);
+    }
+    
+    if !dirty.is_empty() { println!("Children: {:?}", dirty.len()); }
+    
+    for entity in dirty {
+        println!("Marking Dirty: {:?}", entity);
+        if let Ok((_, mut global_bounds, _, _)) = changed_bounds.get_mut(entity) {
+            println!("Marking Dirty");
+            global_bounds.is_dirty = true;
+        }
+    }
+}
+
+pub fn get_children(
+    current : Entity,
+    children_collection : &mut Vec<Entity>,
+    query: &Query<(Entity, &mut AsciiGlobalBounds, Ref<AsciiBounds>, Option<&Children>)>
+) {
+    let Ok((_, _, _, children)) = query.get(current) else { return };
+    
+    if let Some(children) = children {
+        for child in children.iter() {
+            children_collection.push(*child);
+            get_children(*child, children_collection, query);
+        }
     }
 }
 
@@ -23,17 +72,27 @@ pub fn update_bounds(
     mut bounded_entities : Query<(Entity, &mut AsciiGlobalBounds, &AsciiBounds, Option<&Parent>)>,
     acsii_cam_query : Query<&AsciiCamera>
 ) {
-    let entities_to_update = bounded_entities.iter().map(|(entity, _, _, _)| entity).collect::<Vec<_>>();
+    let entities_to_update = bounded_entities.iter_mut().filter_map(|(entity, mut global_bounds, _, _)| {
+        if global_bounds.is_dirty {
+            println!("Entity is Dirty");
+            global_bounds.is_dirty = false;
+            Some(entity)
+        } else {
+            None
+        }
+    }).collect::<Vec<_>>();
     // let global_bounds = HashMap::new();
     
     for entity in entities_to_update {
         let new_global_bounds = get_global_bounds(entity, &bounded_entities, &acsii_cam_query);
-        if let Ok((_, mut global_bounds, _, _)) = bounded_entities.get_mut(entity) {
+        if let Ok((_, mut global_bounds, local_bounds, _)) = bounded_entities.get_mut(entity) {
             if let Some(new_global_bounds) = new_global_bounds {
                 if new_global_bounds != global_bounds.bounds {
                     println!("Updating Bounds");
                     global_bounds.bounds = new_global_bounds
                 } 
+            } else {
+                global_bounds.bounds = local_bounds.clone();
             }
         }
     }
@@ -175,10 +234,10 @@ impl AsciiBounds {
 #[derive(Clone, Default, Debug, Reflect, Component)]
 pub struct AsciiGlobalBounds {
     pub bounds : AsciiBounds,
+    pub is_dirty : bool,
 }
 
 impl AsciiGlobalBounds {
-    
     pub fn set_from(&mut self, bounds : &AsciiBounds) {
         self.bounds = bounds.clone();
     }

@@ -244,8 +244,8 @@ impl<'b> AsciiBoxDrawer<'b> {
             .sub_buffer(
                 self.buffer.bounds.x + 1, 
                 self.buffer.bounds.y + 1, 
-                self.buffer.bounds.width - 2, 
-                self.buffer.bounds.height - 2
+                self.buffer.bounds.width.saturating_sub(2), 
+                self.buffer.bounds.height.saturating_sub(2)
             )
     }
 
