@@ -13,7 +13,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
-use ui::{buffer::{AsciiBounds, AsciiBuffer}, button::AsciiButton, command::AsciiUiCommandExtention, AsciiUi, HorizontalAlignment, VerticalAlignment};
+use ui::{bounds::{AsciiBounds, AsciiGlobalBounds}, buffer::AsciiBuffer, button::AsciiButton, command::AsciiUiCommandExtention, node::AsciiNode, AsciiUi, HorizontalAlignment, VerticalAlignment};
 
 fn main() {
     App::new()
@@ -41,9 +41,10 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(PanOrbitCamera::default())
         .id();
 
-    commands
-        .ascii_ui(camera)
-        .aligned(20, 15, HorizontalAlignment::Center, VerticalAlignment::Center,  AsciiButton::from_string("Test"));
+    // commands
+    //     .ascii_ui(camera)
+    //     .aligned(40, 45, HorizontalAlignment::Left, VerticalAlignment::Center, Div)
+    //     .aligned(20, 15, HorizontalAlignment::Center, VerticalAlignment::Center,  AsciiButton::from_string("Test"));
     
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
@@ -61,6 +62,20 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         }
         .into(),
         ..default()
+    });
+    
+    commands.spawn((
+        AsciiBounds::new(10, 10, 20, 20),
+        AsciiGlobalBounds::default(),
+        AsciiNode::default(),
+        AsciiButton::from_string("Test"),
+    )).with_children(|entity| {
+        entity.spawn((
+            AsciiBounds::new(3, 3, 6, 6),
+            AsciiGlobalBounds::default(),
+            AsciiNode::default(),
+            AsciiButton::from_string("Test"),
+        ));
     });
 
     // commands.spawn(PointLightBundle {

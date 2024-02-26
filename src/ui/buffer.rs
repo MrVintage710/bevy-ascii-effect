@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
-use super::{character::{AsciiCharacter, Color}, node::AsciiUiLayout, BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
+use bevy::{ecs::component::Component, reflect::Reflect};
+
+use super::{bounds::AsciiBounds, character::{AsciiCharacter, Color}, BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
 
 //=============================================================================
 //             Ascii Buffer
@@ -7,12 +9,12 @@ use super::{character::{AsciiCharacter, Color}, node::AsciiUiLayout, BorderType,
 
 #[derive(Clone)]
 pub struct AsciiBuffer {
-    surface: AsciiUiSurface,
+    surface: AsciiSurface,
     pub bounds : AsciiBounds,
 }
 
 impl AsciiBuffer {
-    pub fn new(surface : &AsciiUiSurface, bounds : &AsciiBounds) -> Self {
+    pub fn new(surface : &AsciiSurface, bounds : &AsciiBounds) -> Self {
        AsciiBuffer {
            surface: surface.clone(),
            bounds: bounds.clone(),
@@ -162,13 +164,23 @@ impl AsciiBuffer {
 //=============================================================================
 
 #[derive(Clone)]
-pub struct AsciiUiSurface {
+pub struct AsciiSurface {
     width : u32,
     height : u32,
     data : Arc<Mutex<Vec<AsciiCharacter>>>,
 }
 
-impl AsciiUiSurface {
+impl Default for AsciiSurface {
+    fn default() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            data: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+}
+
+impl AsciiSurface {
     pub fn new(width : u32, height : u32) -> Self {
         let data = vec![AsciiCharacter::default(); (width * height) as usize];
         Self { width, height, data : Arc::new(Mutex::new(data)) }
@@ -197,93 +209,9 @@ impl AsciiUiSurface {
             .collect();
         result
     }
-}
-
-//=============================================================================
-//             Ascii Buffer Bounds
-//=============================================================================
-
-#[derive(Clone, Default, Debug)]
-pub struct AsciiBounds {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-}
-
-impl AsciiBounds {
-    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-        AsciiBounds {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
     
-    pub fn from_dims(width : u32, height : u32) -> Self {
-        AsciiBounds {
-            x : 0,
-            y : 0,
-            width,
-            height,
-        }
-    }
-
-    pub fn is_within(&self, x: u32, y: u32) -> bool {
-        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
-    }
-    
-    pub fn is_within_local(&self, x : u32, y : u32) -> bool {
-        let x = self.x + x;
-        let y = self.y + y;
-        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
-    }
-    
-    pub fn relative(&self, child : &AsciiBounds) -> AsciiBounds {
-        AsciiBounds {
-            x : self.x + child.x,
-            y : self.y + child.y,
-            width : child.width.min(self.width - child.x),
-            height : child.height.min(self.height - child.y),
-        }
-    }
-    
-    pub fn from_layout(&self, layout : &AsciiUiLayout) -> AsciiBounds {
-        match layout {
-            AsciiUiLayout::Absolute(bounds) => bounds.clone(),
-            AsciiUiLayout::Relative(bounds) => self.relative(bounds),
-            AsciiUiLayout::Align(width, height, horizontal_alignment, vertical_alignment) => {
-                let x = match horizontal_alignment {
-                    HorizontalAlignment::Left => self.x,
-                    HorizontalAlignment::Center => self.x + (self.width / 2) - (width / 2),
-                    HorizontalAlignment::Right => self.x + self.width - width,
-                };
-                let y = match vertical_alignment {
-                    VerticalAlignment::Top => self.y,
-                    VerticalAlignment::Center => self.y + (self.height / 2) - (height / 2),
-                    VerticalAlignment::Bottom => self.y + self.height - height,
-                };
-                AsciiBounds {
-                    x,
-                    y,
-                    width : *width,
-                    height : *height,
-                }
-            },
-            AsciiUiLayout::VerticalSlice(slice, max_slices) => {
-                let width = self.width as f32 / *max_slices as f32;
-                let x = width * *slice as f32;
-                
-                AsciiBounds {
-                    x : x as u32,
-                    y : self.y,
-                    width : width as u32,
-                    height : self.height,
-                }
-            },
-            AsciiUiLayout::HorizontalSlice(_, _) => todo!(),
-        }
+    pub fn len(&self) -> usize {
+        (self.width * self.height) as usize
     }
 }
 

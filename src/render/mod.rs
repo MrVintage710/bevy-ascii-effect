@@ -1,4 +1,4 @@
-mod ascii;
+pub mod ascii;
 mod dither;
 mod pixel;
 
@@ -17,7 +17,7 @@ use bevy::{
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         texture::BevyDefault,
-        view::{ExtractedWindows, PostProcessWrite, ViewTarget},
+        view::{ExtractedWindows, PostProcessWrite, RenderLayers, ViewTarget},
         Extract, Render, RenderApp, RenderSet,
     },
 };
@@ -25,7 +25,7 @@ use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
 use crate::{
     ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
-    ui::{buffer::{AsciiBounds, AsciiBuffer, AsciiUiSurface}, node::AsciiUiNode, AsciiUi},
+    ui::{bounds::AsciiGlobalBounds, buffer::{AsciiBuffer, AsciiSurface}, node::AsciiNode, AsciiUi},
 };
 
 use self::{
@@ -51,7 +51,7 @@ impl Plugin for AsciiRendererPlugin {
                 Render,
                 prepare_shader_textures.in_set(RenderSet::PrepareResources),
             )
-            .add_systems(ExtractSchedule, extract_camera)
+            .add_systems(ExtractSchedule, (extract_camera, apply_deferred))
             .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
                 core_3d::graph::NAME,
                 AsciiShaderNode::NAME,
@@ -247,54 +247,63 @@ fn pixel_pass(
 //             Extract Step
 //=============================================================================
 
-pub fn extract_camera(
+pub(crate) fn extract_camera(
     mut commands: Commands,
-    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&Children>)>>,
-    ui_elements: Extract<Query<(&AsciiUiNode, Option<&Children>)>>,
-    mut has_rendered: Local<bool>,
-    mut last_surface : Local<Vec<u8>>
+    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&Children>, Option<&RenderLayers>)>>,
+    ui_elements: Extract<Query<(&AsciiNode, &AsciiGlobalBounds, Option<&Children>)>>,
+    mut is_initialized: Local<bool>,
+    mut last_surface : Local<AsciiSurface>
 ) {
-    for (entity, camera, pixel_camera, ascii_ui, children) in &cameras {
+    for (entity, camera, pixel_camera, ascii_ui, children, render_layers) in &cameras {
         if camera.is_active && pixel_camera.should_render {
             let mut entity = commands.get_or_spawn(entity);
             entity.insert(pixel_camera.clone());
             
+            if let Some(render_layer) = render_layers {
+                entity.insert(render_layer.clone());
+            }
             
             if let Some(ascii_ui) = ascii_ui {
-                if ascii_ui.is_dirty() || !*has_rendered {
-                    let surface = AsciiUiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
-                    if let Some(children) = children {
-                        for child in children.iter() {
-                            render_ui_recursive(*child, &surface, &ui_elements);
-                        }
-                    }
+                // if ascii_ui.is_dirty() || !*has_rendered {
+                //     let surface = AsciiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
+                //     if let Some(children) = children {
+                //         for child in children.iter() {
+                //             // render_ui_recursive(*child, &surface, &ui_elements);
+                //         }
+                //     }
                     
-                    *last_surface = surface.as_byte_vec();
-                    *has_rendered = true;
+                //     *last_surface = surface.as_byte_vec();
+                //     *has_rendered = true;
+                // }
+                
+                if !*is_initialized {
+                    *last_surface = AsciiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
                 }
                 
-                if last_surface.len() > 0 {
+                if ascii_ui.is_dirty() || !*is_initialized{
                     entity.insert(OverlayBuffer(last_surface.clone()));
                 }
+                
+                *is_initialized = false;
             }
         }
     }
 }
 
-fn render_ui_recursive(entity : Entity, surface : &AsciiUiSurface, nodes : &Extract<Query<(&AsciiUiNode, Option<&Children>)>>) {
-    println!("Rendering Child {:?}", entity);
-    let Ok((node, children)) = nodes.get(entity) else {return};
-    if node.bounds.width <= 0 || node.bounds.height <= 0 {return}
+// fn render_ui_recursive(entity : Entity, surface : &AsciiSurface, nodes : &Extract<Query<(&AsciiUiNode, Option<&Children>)>>) {
+//     println!("Rendering Child {:?}", entity);
+//     let Ok((node, children)) = nodes.get(entity) else {return};
+//     if node.bounds.width <= 0 || node.bounds.height <= 0 {return}
     
-    let buffer = AsciiBuffer::new(surface, &node.bounds);
-    node.render(&buffer);
+//     let buffer = AsciiBuffer::new(surface, &node.bounds);
+//     node.render(&buffer);
     
-    if let Some(children) = children {
-        for child in children.iter() {
-            render_ui_recursive(*child, surface, nodes)
-        }
-    }
-}
+//     if let Some(children) = children {
+//         for child in children.iter() {
+//             render_ui_recursive(*child, surface, nodes)
+//         }
+//     }
+// }
 
 //=============================================================================
 //             Prepare Step
@@ -374,7 +383,7 @@ pub fn prepare_shader_textures(
             if let Some(overlay_texture) = ascii_shader_pipeline.overlay_textures.get(&entity) {
                 render_queue.write_texture(
                     overlay_texture.as_image_copy(),
-                    &overlay_buffer.0,
+                    &overlay_buffer.0.as_byte_vec(),
                     ImageDataLayout {
                         offset: 0,
                         bytes_per_row: Some((target_resolution.x * 4.0) as u32),

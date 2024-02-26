@@ -3,6 +3,8 @@ pub mod button;
 pub mod node;
 pub mod command;
 pub mod character;
+pub mod component;
+pub mod bounds;
 
 
 use std::collections::VecDeque;
@@ -11,7 +13,7 @@ use bevy::{
     prelude::*, utils::{hashbrown::HashMap}, window::{PrimaryWindow, WindowResized}
 };
 use crate::ascii::AsciiCamera;
-use self::{buffer::AsciiBounds, character::Character, node::AsciiUiNode};
+use self::{bounds::AsciiBoundsPlugin, buffer::AsciiSurface, button::AsciiButton, character::Character, component::AsciiComponentPlugin, node::AsciiNode};
 
 //=============================================================================
 //             Ascii UI Plugin
@@ -22,7 +24,13 @@ pub struct AsciiUiPlugin;
 impl Plugin for AsciiUiPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(PostUpdate, (update_is_dirty, update_bounds).chain())
+            .add_plugins(AsciiBoundsPlugin)
+            .add_plugins(AsciiComponentPlugin::<AsciiButton>::default())
+        ;
+        
+        app
+            .register_type::<AsciiNode>()
+            // .add_systems(PostUpdate, (update_is_dirty, update_bounds).chain())
             .add_systems(PreUpdate, prepare_ui)
         ;
     }
@@ -93,7 +101,7 @@ pub enum TextOverflow {
     Elipses,
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
 pub enum HorizontalAlignment {
     #[default]
     Left,
@@ -101,7 +109,7 @@ pub enum HorizontalAlignment {
     Right,
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
 pub enum VerticalAlignment {
     #[default]
     Top,
@@ -164,157 +172,82 @@ impl From<(u32, u32, u32, u32)> for Padding {
 //             Ascii Ui Node
 //=============================================================================
 
-fn update_bounds(
-    ascii_ui: Query<(&AsciiUi, &AsciiCamera, &Children)>,
-    mut nodes : Query<(Entity, &mut AsciiUiNode, Option<&Children>)>,
-) {
-    for (ui, camera, children) in ascii_ui.iter() {
-        if ui.is_dirty {
-            let target_res = camera.target_res();
-            let bounds = AsciiBounds::from_dims(target_res.x as u32, target_res.y as u32);
-            let mut map = HashMap::new();
+// fn update_bounds(
+//     ascii_ui: Query<(&AsciiUi, &AsciiCamera, &Children)>,
+//     mut nodes : Query<(Entity, &mut AsciiNode, Option<&Children>)>,
+// ) {
+//     for (ui, camera, children) in ascii_ui.iter() {
+//         if ui.is_dirty {
+//             let target_res = camera.target_res();
+//             let bounds = AsciiBounds::from_dims(target_res.x as u32, target_res.y as u32);
+//             let mut map = HashMap::new();
             
-           for child in children.iter() {
-               calc_bounds(*child, &bounds, &mut map, &nodes);
-           }
+//             let mut iteration = 0;
+//            for child in children.iter() {
+//                calc_bounds(*child, &bounds, &mut map, &nodes, &mut iteration);
+//            }
            
-           println!("{:?}", map);
+//            println!("{:?}", map);
            
-           for (entity, mut node, _) in nodes.iter_mut() {
-               if let Some(bounds) = map.remove(&entity) {
-                   node.bounds = bounds;
-                   node.is_dirty = false;
-               }
-           }
-        }
-    }
-}
+//            for (entity, mut node, _) in nodes.iter_mut() {
+//                if let Some((bounds, order)) = map.remove(&entity) {
+//                    node.bounds = bounds;
+//                    node.render_order = order;
+//                    node.is_dirty = false;
+//                }
+//            }
+//         }
+//     }
+// }
 
-fn calc_bounds(current : Entity, last_bound: &AsciiBounds, map : &mut HashMap<Entity, AsciiBounds>, nodes : &Query<(Entity, &mut AsciiUiNode, Option<&Children>)>) {
-    if let Ok((_, node, children)) = nodes.get(current) {
-        let bound = last_bound.from_layout(node.layout());
-        if let Some(children) = children {
-            for child in children.iter() {
-                calc_bounds(*child, &bound, map, nodes);
-            }
-        }
-        map.insert(current.clone(), bound);
-    }
-}
-
-fn update_is_dirty(
-    mut ascii_ui: Query<(&mut AsciiUi, &Children)>,
-    nodes : Query<(Entity, &mut AsciiUiNode, Option<&Children>)>,
-) {
-    for (mut ui, children) in ascii_ui.iter_mut() {
-        if children.iter().any(|child| is_any_dirty(*child, &nodes)) {
-            ui.is_dirty = true;
-        }
-    }
-}
-
-fn is_any_dirty(current : Entity, nodes : &Query<(Entity, &mut AsciiUiNode, Option<&Children>)>) -> bool {
-    if let Ok((_, node, children)) = nodes.get(current) {
-        if node.is_dirty() {
-            return true;
-        }
-        
-        if let Some(children) = children {
-            return children.iter().any(|child| is_any_dirty(*child, nodes));
-        }
-    }
-    
-    false
-}
-
-fn prepare_ui (
-    mut ascii_ui: Query<(&mut AsciiUi)>
-) {
-    for mut ui in ascii_ui.iter_mut() {
-        ui.is_dirty = false;
-    }
-}
-
-
-
-// fn update_ui_nodes_recursive(current : Entity, parrent_bounds : &AsciiBounds, nodes : &mut Query<(&mut AsciiUiNode, Option<&Children>)>) -> bool {
-//     let mut node_children = Vec::new();
-//     let mut is_dirty = false;
-    
-//     if let Ok((mut node, children)) = nodes.get_mut(current) {
-//         let bounds = parrent_bounds.from_layout(node.layout());
-//         node.bounds = bounds;
-        
+// fn calc_bounds(current : Entity, last_bound: &AsciiBounds, map : &mut HashMap<Entity, (AsciiBounds, u32)>, nodes : &Query<(Entity, &mut AsciiUiNode, Option<&Children>)>, iteration : &mut u32) {
+//     if let Ok((_, node, children)) = nodes.get(current) {
+//         let bound = last_bound.from_layout(node.layout());
 //         if let Some(children) = children {
-//             node_children = children.iter().collect();
-//         }
-        
-//         is_dirty = node.is_dirty();
-//     }
-    
-//     for child in node_children.iter() {
-//         if update_ui_nodes_recursive(**child, parrent_bounds, nodes) {
-//             is_dirty = true;
-//         }
-//     }
-    
-//     is_dirty
-// }
-
-// pub struct TestNode {
-//     dims : AsciiBounds,
-//     color : Color,
-//     agree_btn : AsciiButton,
-//     disagree_btn : AsciiButton,
-// }
-
-// impl Default for TestNode {
-//     fn default() -> Self {
-//         TestNode {
-//             dims : AsciiBounds::from_dims(40, 20),
-//             color : Color::Violet,
-//             agree_btn : AsciiButton::new("Agree"),
-//             disagree_btn : AsciiButton::new("Disagree"),
-//         }
-//     }
-// }
-
-// impl AsciiUiNode for TestNode {
-//     fn render(&mut self, buffer: &AsciiBuffer) {
-//         let center = buffer.center(self.dims.width, self.dims.height);
-        
-//         self.dims = center.clone().bounds;
-//         let inner_square = center
-//             .square()
-//             .border(BorderType::Full)
-//             .title("Test Box")
-//             .border_color(self.color)
-//             .draw();
-        
-//         if let Some(inner_square) = inner_square {
-//             let (top, bottom) = inner_square.top(3);
-//             top.padding((0, 0, 1, 0)).text("Are you sure that you want to continue?").horizontal_alignment(HorizontalAlignment::Center).wrap().draw();
-//             if let Some(bottom) = bottom {
-//                 if let Some(splits) = bottom.vertical_split::<2>() {
-//                     self.agree_btn.render(&splits[0].padding((3, 1, 3, 1)));
-//                     self.disagree_btn.render(&splits[1].padding((3, 1, 3, 1)));
-//                     // splits[0].padding((0, 1, 0, 0)).text("This text should be on the left, and it should wrap to the next line.").wrap().draw();
-//                     // splits[1].text("This text should be on the right, and it should wrap to the next line.").wrap().draw();
-//                 }
+//             for child in children.iter() {
+//                 calc_bounds(*child, &bound, map, nodes, iteration);
 //             }
 //         }
-//     }
-
-//     fn update(&mut self, context: &mut AsciiUiContext) {
-//         // let Some(cursor) = context.cursor_pos() else {return;};
-//         // if self.dims.is_within(cursor.0, cursor.1) {
-//         //     if self.color != Color::Red {context.mark_dirty()}
-//         //     self.color = Color::Red;
-//         // } else {
-//         //     if self.color != Color::Violet {context.mark_dirty()}
-//         //     self.color = Color::Violet;
-//         // }
-//         self.agree_btn.update(context);
-//         self.disagree_btn.update(context);
+//         map.insert(current.clone(), (bound, *iteration));
+//         *iteration += 1;
 //     }
 // }
+
+// fn update_is_dirty(
+//     mut ascii_ui: Query<(&mut AsciiUi, &Children)>,
+//     nodes : Query<(Entity, &mut AsciiUiNode, Option<&Children>)>,
+// ) {
+//     for (mut ui, children) in ascii_ui.iter_mut() {
+//         if children.iter().any(|child| is_any_dirty(*child, &nodes)) {
+//             ui.is_dirty = true;
+//         }
+//     }
+// }
+
+// fn is_any_dirty(current : Entity, nodes : &Query<(Entity, &mut AsciiNode, Option<&Children>)>) -> bool {
+//     if let Ok((_, node, children)) = nodes.get(current) {
+//         if node.is_dirty() {
+//             return true;
+//         }
+        
+//         if let Some(children) = children {
+//             return children.iter().any(|child| is_any_dirty(*child, nodes));
+//         }
+//     }
+    
+//     false
+// }
+
+fn prepare_ui (
+    mut ascii_ui: Query<(&mut AsciiUi)>,
+    mut resized_event : EventReader<WindowResized>
+) {
+    for mut ui in ascii_ui.iter_mut() {
+        if !resized_event.is_empty() {
+            ui.is_dirty = true;
+        } else {
+            ui.is_dirty = false;
+        }
+        
+    }
+}

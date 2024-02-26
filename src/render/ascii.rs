@@ -1,4 +1,4 @@
-use crate::ascii::{AsciiCamera, AsciiShaderSettingsBuffer};
+use crate::{ascii::{AsciiCamera, AsciiShaderSettingsBuffer}, ui::buffer::AsciiSurface};
 use bevy::{
     asset::AssetServer,
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
@@ -195,4 +195,4 @@ impl FromWorld for AsciiShaderPipeline {
 //=============================================================================
 
 #[derive(Component)]
-pub struct OverlayBuffer(pub Vec<u8>);
+pub struct OverlayBuffer(pub AsciiSurface);
