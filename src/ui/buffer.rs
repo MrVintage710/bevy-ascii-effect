@@ -21,9 +21,15 @@ impl AsciiBuffer {
        }
     }
     
+    pub fn with_layer(mut self, layer : u32) -> Self {
+       self.bounds.layer = layer;
+       self
+    }
+    
     pub fn set_character(&self, x: u32, y: u32, character: impl Into<AsciiCharacter>) {
         if self.bounds.is_within_local(x, y) {
-            self.surface.set_character(self.bounds.x + x, self.bounds.y + y, character.into());
+            let character = character.into().with_layer(self.bounds.layer);
+            self.surface.set_character(self.bounds.x + x, self.bounds.y + y, character);
         }
     }
 
@@ -190,7 +196,22 @@ impl AsciiSurface {
         let Ok(mut data) = self.data.lock() else {return};
         let index = self.calc_index(x, y);
         if index < data.len() {
-            (*data)[index] = character;
+            let data = &mut data[index];
+            let layer_test = match (&character, &data) {
+                (
+                    AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : input_layer }, 
+                    AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : data_layer }
+                ) => {
+                    input_layer >= data_layer
+                },
+                (AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : _ }, AsciiCharacter::Unset) => true,
+                (AsciiCharacter::Unset, AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : _ }) => true,
+                (AsciiCharacter::Unset, AsciiCharacter::Unset) => false,
+            };
+            
+            if layer_test {
+                *data = character;
+            }
         }
     }
     
@@ -348,7 +369,6 @@ pub struct AsciiTextDrawer<'b> {
 impl <'b> AsciiTextDrawer<'b> {
     
     pub fn draw(self) {
-        // println!("{}", self.buffer.bounds.width);
         let lines : Vec<String> = if self.should_wrap {
             let lines = textwrap::wrap(self.text.as_str(), self.buffer.bounds.width as usize);
             lines.iter().map(|s| s.to_string()).collect()

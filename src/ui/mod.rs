@@ -187,7 +187,6 @@ impl From<(u32, u32, u32, u32)> for Padding {
 //                calc_bounds(*child, &bounds, &mut map, &nodes, &mut iteration);
 //            }
            
-//            println!("{:?}", map);
            
 //            for (entity, mut node, _) in nodes.iter_mut() {
 //                if let Some((bounds, order)) = map.remove(&entity) {

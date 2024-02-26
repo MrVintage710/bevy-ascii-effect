@@ -33,8 +33,6 @@ pub fn mark_bounds_dirty(
     
     let mut dirty = Vec::new();
     
-    if !entities.is_empty() { println!("Updating Children") }
-    
     for entity in entities {
         let mut children = Vec::new();
         get_children(entity, &mut children, &changed_bounds);
@@ -42,12 +40,8 @@ pub fn mark_bounds_dirty(
         dirty.push(entity);
     }
     
-    if !dirty.is_empty() { println!("Children: {:?}", dirty.len()); }
-    
     for entity in dirty {
-        println!("Marking Dirty: {:?}", entity);
         if let Ok((_, mut global_bounds, _, _)) = changed_bounds.get_mut(entity) {
-            println!("Marking Dirty");
             global_bounds.is_dirty = true;
         }
     }
@@ -74,7 +68,6 @@ pub fn update_bounds(
 ) {
     let entities_to_update = bounded_entities.iter_mut().filter_map(|(entity, mut global_bounds, _, _)| {
         if global_bounds.is_dirty {
-            println!("Entity is Dirty");
             global_bounds.is_dirty = false;
             Some(entity)
         } else {
@@ -88,7 +81,6 @@ pub fn update_bounds(
         if let Ok((_, mut global_bounds, local_bounds, _)) = bounded_entities.get_mut(entity) {
             if let Some(new_global_bounds) = new_global_bounds {
                 if new_global_bounds != global_bounds.bounds {
-                    println!("Updating Bounds");
                     global_bounds.bounds = new_global_bounds
                 } 
             } else {
@@ -130,6 +122,7 @@ pub struct AsciiBounds {
     pub y: u32,
     pub width: u32,
     pub height: u32,
+    pub layer: u32,
 }
 
 impl AsciiBounds {
@@ -139,6 +132,7 @@ impl AsciiBounds {
             y,
             width,
             height,
+            layer: 0,
         }
     }
     
@@ -148,7 +142,13 @@ impl AsciiBounds {
             y : 0,
             width,
             height,
+            layer : 0,
         }
+    }
+    
+    pub fn with_layer(mut self, layer: u32) -> Self {
+        self.layer = layer;
+        self
     }
 
     pub fn is_within(&self, x: u32, y: u32) -> bool {
@@ -165,8 +165,9 @@ impl AsciiBounds {
         AsciiBounds {
             x : self.x + child.x,
             y : self.y + child.y,
-            width : child.width.min(self.width - child.x),
-            height : child.height.min(self.height - child.y),
+            width : child.width,
+            height : child.height,
+            layer : child.layer + 1,
         }
     }
     
@@ -186,6 +187,7 @@ impl AsciiBounds {
             y,
             width : width.min(self.width),
             height : height.min(self.height),
+            layer : self.layer + 1,
         }
     }
     

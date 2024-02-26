@@ -8,6 +8,7 @@ pub enum AsciiCharacter {
         index: Character,
         text_color: Color,
         background_color: Color,
+        layer : u32
     },
     Unset,
 }
@@ -24,7 +25,18 @@ impl AsciiCharacter {
             index: character,
             text_color,
             background_color: bg_color,
+            layer : 0,
         }
+    }
+    
+    pub fn with_layer(mut self, layer : u32) -> AsciiCharacter {
+        match &mut self {
+            AsciiCharacter::Set { layer : l, .. } => {
+                *l = layer;
+            }
+            _ => (),
+        }
+        self
     }
 
     pub fn into_u8(&self) -> [u8; 4] {
@@ -33,6 +45,7 @@ impl AsciiCharacter {
                 index,
                 text_color,
                 background_color,
+                layer : _
             } => {
                 if *index as u8 > 127u8
                     || *text_color as u8 > 15u8

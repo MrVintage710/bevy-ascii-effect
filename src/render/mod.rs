@@ -249,12 +249,11 @@ fn pixel_pass(
 
 pub(crate) fn extract_camera(
     mut commands: Commands,
-    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&Children>, Option<&RenderLayers>)>>,
-    ui_elements: Extract<Query<(&AsciiNode, &AsciiGlobalBounds, Option<&Children>)>>,
+    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&RenderLayers>)>>,
     mut is_initialized: Local<bool>,
     mut last_surface : Local<AsciiSurface>
 ) {
-    for (entity, camera, pixel_camera, ascii_ui, children, render_layers) in &cameras {
+    for (entity, camera, pixel_camera, ascii_ui, render_layers) in &cameras {
         if camera.is_active && pixel_camera.should_render {
             let mut entity = commands.get_or_spawn(entity);
             entity.insert(pixel_camera.clone());
@@ -264,18 +263,6 @@ pub(crate) fn extract_camera(
             }
             
             if let Some(ascii_ui) = ascii_ui {
-                // if ascii_ui.is_dirty() || !*has_rendered {
-                //     let surface = AsciiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
-                //     if let Some(children) = children {
-                //         for child in children.iter() {
-                //             // render_ui_recursive(*child, &surface, &ui_elements);
-                //         }
-                //     }
-                    
-                //     *last_surface = surface.as_byte_vec();
-                //     *has_rendered = true;
-                // }
-                
                 if !*is_initialized {
                     *last_surface = AsciiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
                 }
@@ -289,21 +276,6 @@ pub(crate) fn extract_camera(
         }
     }
 }
-
-// fn render_ui_recursive(entity : Entity, surface : &AsciiSurface, nodes : &Extract<Query<(&AsciiUiNode, Option<&Children>)>>) {
-//     println!("Rendering Child {:?}", entity);
-//     let Ok((node, children)) = nodes.get(entity) else {return};
-//     if node.bounds.width <= 0 || node.bounds.height <= 0 {return}
-    
-//     let buffer = AsciiBuffer::new(surface, &node.bounds);
-//     node.render(&buffer);
-    
-//     if let Some(children) = children {
-//         for child in children.iter() {
-//             render_ui_recursive(*child, surface, nodes)
-//         }
-//     }
-// }
 
 //=============================================================================
 //             Prepare Step
