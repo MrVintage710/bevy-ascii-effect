@@ -118,15 +118,15 @@ pub fn get_global_bounds(
 
 #[derive(Clone, Default, Debug, Reflect, Component, PartialEq, Eq)]
 pub struct AsciiBounds {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
     pub width: u32,
     pub height: u32,
     pub layer: u32,
 }
 
 impl AsciiBounds {
-    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
+    pub fn new(x: i32, y: i32, width: u32, height: u32) -> Self {
         AsciiBounds {
             x,
             y,
@@ -151,14 +151,14 @@ impl AsciiBounds {
         self
     }
 
-    pub fn is_within(&self, x: u32, y: u32) -> bool {
-        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
+    pub fn is_within(&self, x: i32, y: i32) -> bool {
+        x >= self.x && x <= self.x + self.width as i32 && y >= self.y && y <= self.y + self.height as i32
     }
     
-    pub fn is_within_local(&self, x : u32, y : u32) -> bool {
+    pub fn is_within_local(&self, x : i32, y : i32) -> bool {
         let x = self.x + x;
         let y = self.y + y;
-        x >= self.x && x <= self.x + self.width && y >= self.y && y <= self.y + self.height
+        x >= self.x && x <= self.x + self.width as i32 && y >= self.y && y <= self.y + self.height as i32
     }
     
     pub fn relative(&self, child : &AsciiBounds) -> AsciiBounds {
@@ -174,13 +174,13 @@ impl AsciiBounds {
     pub fn aligned(&self, width : u32, height : u32, horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment) -> AsciiBounds {
         let x = match horizontal_alignment {
             HorizontalAlignment::Left => self.x,
-            HorizontalAlignment::Center => self.x + ((self.width as f32 / 2.0) - (width as f32 / 2.0)).floor().max(0.0) as u32,
-            HorizontalAlignment::Right => self.x + self.width.saturating_sub(width),
+            HorizontalAlignment::Center => self.x + ((self.width as f32 / 2.0) - (width as f32 / 2.0)).floor().max(0.0) as i32,
+            HorizontalAlignment::Right => self.x + self.width.saturating_sub(width) as i32,
         };
         let y = match vertical_alignment {
             VerticalAlignment::Top => self.y,
-            VerticalAlignment::Center => self.y + ((self.height as f32 / 2.0) - (height as f32 / 2.0)).floor().max(0.0) as u32,
-            VerticalAlignment::Bottom => self.y + self.height.saturating_sub(height),
+            VerticalAlignment::Center => self.y + ((self.height as f32 / 2.0) - (height as f32 / 2.0)).floor().max(0.0) as i32,
+            VerticalAlignment::Bottom => self.y + self.height.saturating_sub(height) as i32,
         };
         AsciiBounds {
             x,
