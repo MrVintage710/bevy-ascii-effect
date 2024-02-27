@@ -31,7 +31,7 @@ impl Plugin for AsciiUiPlugin {
         app
             .register_type::<AsciiNode>()
             // .add_systems(PostUpdate, (update_is_dirty, update_bounds).chain())
-            .add_systems(PreUpdate, prepare_ui)
+            // .add_systems(PreUpdate, prepare_ui)
         ;
     }
 }
@@ -171,71 +171,6 @@ impl From<(u32, u32, u32, u32)> for Padding {
 //=============================================================================
 //             Ascii Ui Node
 //=============================================================================
-
-// fn update_bounds(
-//     ascii_ui: Query<(&AsciiUi, &AsciiCamera, &Children)>,
-//     mut nodes : Query<(Entity, &mut AsciiNode, Option<&Children>)>,
-// ) {
-//     for (ui, camera, children) in ascii_ui.iter() {
-//         if ui.is_dirty {
-//             let target_res = camera.target_res();
-//             let bounds = AsciiBounds::from_dims(target_res.x as u32, target_res.y as u32);
-//             let mut map = HashMap::new();
-            
-//             let mut iteration = 0;
-//            for child in children.iter() {
-//                calc_bounds(*child, &bounds, &mut map, &nodes, &mut iteration);
-//            }
-           
-           
-//            for (entity, mut node, _) in nodes.iter_mut() {
-//                if let Some((bounds, order)) = map.remove(&entity) {
-//                    node.bounds = bounds;
-//                    node.render_order = order;
-//                    node.is_dirty = false;
-//                }
-//            }
-//         }
-//     }
-// }
-
-// fn calc_bounds(current : Entity, last_bound: &AsciiBounds, map : &mut HashMap<Entity, (AsciiBounds, u32)>, nodes : &Query<(Entity, &mut AsciiUiNode, Option<&Children>)>, iteration : &mut u32) {
-//     if let Ok((_, node, children)) = nodes.get(current) {
-//         let bound = last_bound.from_layout(node.layout());
-//         if let Some(children) = children {
-//             for child in children.iter() {
-//                 calc_bounds(*child, &bound, map, nodes, iteration);
-//             }
-//         }
-//         map.insert(current.clone(), (bound, *iteration));
-//         *iteration += 1;
-//     }
-// }
-
-// fn update_is_dirty(
-//     mut ascii_ui: Query<(&mut AsciiUi, &Children)>,
-//     nodes : Query<(Entity, &mut AsciiUiNode, Option<&Children>)>,
-// ) {
-//     for (mut ui, children) in ascii_ui.iter_mut() {
-//         if children.iter().any(|child| is_any_dirty(*child, &nodes)) {
-//             ui.is_dirty = true;
-//         }
-//     }
-// }
-
-// fn is_any_dirty(current : Entity, nodes : &Query<(Entity, &mut AsciiNode, Option<&Children>)>) -> bool {
-//     if let Ok((_, node, children)) = nodes.get(current) {
-//         if node.is_dirty() {
-//             return true;
-//         }
-        
-//         if let Some(children) = children {
-//             return children.iter().any(|child| is_any_dirty(*child, nodes));
-//         }
-//     }
-    
-//     false
-// }
 
 fn prepare_ui (
     mut ascii_ui: Query<(&mut AsciiUi)>,

@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
+use std::{io::IsTerminal, marker::PhantomData};
 
-use bevy::{ecs::query::WorldQuery, prelude::*, render::{extract_component, view::RenderLayers, Extract, RenderApp}};
+use bevy::{ecs::{query::WorldQuery, system::{StaticSystemParam, SystemParam}}, prelude::*, render::{extract_component, view::RenderLayers, Extract, RenderApp}};
 
 use crate::{ascii::AsciiCamera, render::{ascii::OverlayBuffer, extract_camera}};
 
@@ -37,21 +37,19 @@ impl<AC : AsciiComponent> Plugin for AsciiComponentPlugin<AC> {
 
 fn update_components<C : AsciiComponent>(
     mut nodes : Query<(&mut C, &AsciiGlobalBounds)>,
-    mut query : Query<C::UpdateQuery>
+    mut query : StaticSystemParam<C::UpdateQuery>
 ) {
-    for mut item in query.iter_mut() {
-        for (mut component, global_bounds) in nodes.iter_mut() {
-            component.update(&mut item, &global_bounds.bounds);
-        }
+    // let query = *query;
+    for (mut component, global_bounds) in nodes.iter_mut() {
+        component.update(&mut (*query), &global_bounds.bounds);
     }
 }
 
 pub fn extract_ascii_ui<C : AsciiComponent>(
-    mut commands: Commands,
-    mut ascii_cameras: Query<(Entity, &AsciiCamera, &mut OverlayBuffer, Option<&RenderLayers>)>,
+    ascii_cameras: Query<(&OverlayBuffer, Option<&RenderLayers>), (With<AsciiCamera>)>,
     ui_elements: Extract<Query<(&AsciiNode, &AsciiGlobalBounds, &C, Option<&RenderLayers>)>>,
 ) {
-    for (cam_entity, node, mut buffer, camera_render_layers) in ascii_cameras.iter_mut() {
+    for (buffer, camera_render_layers) in ascii_cameras.iter() {
         for (node, global_bounds, component, component_render_layer) in ui_elements.iter() {
             match (component_render_layer, camera_render_layers) {
                 (Some(_), None) |
@@ -79,11 +77,11 @@ pub fn extract_ascii_ui<C : AsciiComponent>(
 //=============================================================================
 
 pub trait AsciiComponent : Component {
-    type UpdateQuery : WorldQuery;
+    type UpdateQuery : SystemParam;
     
     fn render(&self, buffer : &mut AsciiBuffer) {}
     
-    fn update(&mut self, query : &mut <Self::UpdateQuery as WorldQuery>::Item<'_>, bounds : &AsciiBounds) {}
+    fn update(&mut self, query : &mut <Self::UpdateQuery as SystemParam>::Item<'_, '_>, bounds : &AsciiBounds) {}
     
     fn set_up(app : &mut App) {}
 }

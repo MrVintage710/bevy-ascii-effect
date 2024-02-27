@@ -22,7 +22,9 @@ impl AsciiButton {
 }
 
 impl AsciiComponent for AsciiButton {
-    type UpdateQuery = ();
+    type UpdateQuery = (
+        
+    );
 
     fn render(&self, buffer : &mut AsciiBuffer) {
         buffer.square().border(BorderType::Full).draw();

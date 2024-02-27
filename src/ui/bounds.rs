@@ -167,7 +167,7 @@ impl AsciiBounds {
             y : self.y + child.y,
             width : child.width,
             height : child.height,
-            layer : child.layer + 1,
+            layer : child.layer + self.layer + 1,
         }
     }
     
