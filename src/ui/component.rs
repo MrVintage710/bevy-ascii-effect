@@ -46,11 +46,11 @@ fn update_components<C : AsciiComponent>(
 }
 
 pub fn extract_ascii_ui<C : AsciiComponent>(
-    ascii_cameras: Query<(&OverlayBuffer, Option<&RenderLayers>), (With<AsciiCamera>)>,
-    ui_elements: Extract<Query<(&AsciiNode, &AsciiGlobalBounds, &C, Option<&RenderLayers>)>>,
+    ascii_cameras: Query<(&OverlayBuffer, Option<&RenderLayers>), With<AsciiCamera>>,
+    ui_elements: Extract<Query<(&AsciiGlobalBounds, &C, Option<&RenderLayers>)>>,
 ) {
     for (buffer, camera_render_layers) in ascii_cameras.iter() {
-        for (node, global_bounds, component, component_render_layer) in ui_elements.iter() {
+        for (global_bounds, component, component_render_layer) in ui_elements.iter() {
             match (component_render_layer, camera_render_layers) {
                 (Some(_), None) |
                 (None, Some(_)) => {

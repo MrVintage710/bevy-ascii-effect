@@ -11,9 +11,8 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-use bevy_inspector_egui::quick::ResourceInspectorPlugin;
-use bevy_inspector_egui::{prelude::*, quick::WorldInspectorPlugin};
-use ui::{bounds::{AsciiBounds, AsciiGlobalBounds}, buffer::AsciiBuffer, button::AsciiButton, command::AsciiUiCommandExtention, node::AsciiNode, AsciiUi, HorizontalAlignment, VerticalAlignment};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use ui::{bounds::AsciiGlobalBounds, button::AsciiButton, node::AsciiNode, position::AsciiPosition, AsciiUi, HorizontalAlignment, VerticalAlignment};
 
 fn main() {
     App::new()
@@ -64,19 +63,20 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     });
     
-    commands.spawn((
-        AsciiBounds::new(10, 10, 20, 20),
-        AsciiGlobalBounds::default(),
-        AsciiNode::default(),
+    let ui = commands.spawn((
+        // AsciiPosition::relavtive(3, 3, 6, 6),
+        AsciiGlobalBounds::new(10, 10, 20, 15),
         AsciiButton::from_string("Test"),
     )).with_children(|entity| {
         entity.spawn((
-            AsciiBounds::new(3, 3, 6, 6),
+            AsciiPosition::align(6, 6, HorizontalAlignment::Center, VerticalAlignment::Center),
             AsciiGlobalBounds::default(),
             AsciiNode::default(),
             AsciiButton::from_string("Test"),
         ));
-    });
+    }).id();
+    
+    // commands.entity(camera).add_child(ui);
 
     // commands.spawn(PointLightBundle {
     //     point_light: PointLight {

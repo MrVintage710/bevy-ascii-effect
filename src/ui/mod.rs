@@ -5,15 +5,10 @@ pub mod command;
 pub mod character;
 pub mod component;
 pub mod bounds;
+pub mod position;
 
-
-use std::collections::VecDeque;
-
-use bevy::{
-    prelude::*, utils::{hashbrown::HashMap}, window::{PrimaryWindow, WindowResized}
-};
-use crate::ascii::AsciiCamera;
-use self::{bounds::AsciiBoundsPlugin, buffer::AsciiSurface, button::AsciiButton, character::Character, component::AsciiComponentPlugin, node::AsciiNode};
+use bevy::prelude::*;
+use self::{bounds::AsciiBoundsPlugin, button::AsciiButton, character::Character, component::AsciiComponentPlugin, node::AsciiNode, position::AsciiPositionPlugin};
 
 //=============================================================================
 //             Ascii UI Plugin
@@ -25,6 +20,7 @@ impl Plugin for AsciiUiPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(AsciiBoundsPlugin)
+            .add_plugins(AsciiPositionPlugin)
             .add_plugins(AsciiComponentPlugin::<AsciiButton>::default())
         ;
         
@@ -117,6 +113,7 @@ pub enum VerticalAlignment {
     Bottom,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub struct Padding {
     pub top: u32,
     pub right: u32,
@@ -165,23 +162,5 @@ impl From<(u32, u32, u32, u32)> for Padding {
             bottom,
             left,
         }
-    }
-}
-
-//=============================================================================
-//             Ascii Ui Node
-//=============================================================================
-
-fn prepare_ui (
-    mut ascii_ui: Query<(&mut AsciiUi)>,
-    mut resized_event : EventReader<WindowResized>
-) {
-    for mut ui in ascii_ui.iter_mut() {
-        if !resized_event.is_empty() {
-            ui.is_dirty = true;
-        } else {
-            ui.is_dirty = false;
-        }
-        
     }
 }

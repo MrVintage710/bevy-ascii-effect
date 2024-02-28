@@ -2,7 +2,7 @@ use bevy::{prelude::*, utils::HashMap};
 
 use crate::ascii::AsciiCamera;
 
-use super::{HorizontalAlignment, VerticalAlignment};
+use super::{position::AsciiPosition, HorizontalAlignment, VerticalAlignment};
 
 //=============================================================================
 //             Plugin and Systems
@@ -90,7 +90,7 @@ pub fn update_bounds(
     }
 }
 
-pub fn get_global_bounds(
+pub fn get_global_bounds (
     current : Entity,
     global_bounds_query : &Query<(Entity, &mut AsciiGlobalBounds, &AsciiBounds, Option<&Parent>)>,
     acsii_cam_query : &Query<&AsciiCamera>
@@ -172,61 +172,8 @@ impl AsciiBounds {
     }
     
     pub fn aligned(&self, width : u32, height : u32, horizontal_alignment : HorizontalAlignment, vertical_alignment : VerticalAlignment) -> AsciiBounds {
-        let x = match horizontal_alignment {
-            HorizontalAlignment::Left => self.x,
-            HorizontalAlignment::Center => self.x + ((self.width as f32 / 2.0) - (width as f32 / 2.0)).floor().max(0.0) as i32,
-            HorizontalAlignment::Right => self.x + self.width.saturating_sub(width) as i32,
-        };
-        let y = match vertical_alignment {
-            VerticalAlignment::Top => self.y,
-            VerticalAlignment::Center => self.y + ((self.height as f32 / 2.0) - (height as f32 / 2.0)).floor().max(0.0) as i32,
-            VerticalAlignment::Bottom => self.y + self.height.saturating_sub(height) as i32,
-        };
-        AsciiBounds {
-            x,
-            y,
-            width : width.min(self.width),
-            height : height.min(self.height),
-            layer : self.layer + 1,
-        }
+        AsciiPosition::create_bounds_aligned(width, height, horizontal_alignment, vertical_alignment, self)
     }
-    
-    // pub fn from_layout(&self, layout : &AsciiUiLayout) -> AsciiBounds {
-    //     match layout {
-    //         AsciiUiLayout::Absolute(bounds) => bounds.clone(),
-    //         AsciiUiLayout::Relative(bounds) => self.relative(bounds),
-    //         AsciiUiLayout::Align(width, height, horizontal_alignment, vertical_alignment) => {
-    //             let x = match horizontal_alignment {
-    //                 HorizontalAlignment::Left => self.x,
-    //                 HorizontalAlignment::Center => self.x + ((self.width as f32 / 2.0) - (*width as f32 / 2.0)).floor().max(0.0) as u32,
-    //                 HorizontalAlignment::Right => self.x + self.width.saturating_sub(*width),
-    //             };
-    //             let y = match vertical_alignment {
-    //                 VerticalAlignment::Top => self.y,
-    //                 VerticalAlignment::Center => self.y + ((self.height as f32 / 2.0) - (*height as f32 / 2.0)).floor().max(0.0) as u32,
-    //                 VerticalAlignment::Bottom => self.y + self.height.saturating_sub(*height),
-    //             };
-    //             AsciiBounds {
-    //                 x,
-    //                 y,
-    //                 width : *width,
-    //                 height : *height,
-    //             }
-    //         },
-    //         AsciiUiLayout::VerticalSlice(slice, max_slices) => {
-    //             let width = self.width as f32 / *max_slices as f32;
-    //             let x = width * *slice as f32;
-                
-    //             AsciiBounds {
-    //                 x : x as u32,
-    //                 y : self.y,
-    //                 width : width as u32,
-    //                 height : self.height,
-    //             }
-    //         },
-    //         AsciiUiLayout::HorizontalSlice(_, _) => todo!(),
-    //     }
-    // }
 }
 
 //=============================================================================
@@ -237,9 +184,18 @@ impl AsciiBounds {
 pub struct AsciiGlobalBounds {
     pub bounds : AsciiBounds,
     pub is_dirty : bool,
+    pub clip_bounds : bool,
 }
 
 impl AsciiGlobalBounds {
+    pub fn new(x : i32, y : i32, width : u32, height : u32) -> AsciiGlobalBounds {
+        AsciiGlobalBounds {
+            bounds : AsciiBounds::new(x, y, width, height),
+            is_dirty : false,
+            clip_bounds : false,
+        }
+    }
+    
     pub fn set_from(&mut self, bounds : &AsciiBounds) {
         self.bounds = bounds.clone();
     }
