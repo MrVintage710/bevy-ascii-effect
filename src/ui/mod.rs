@@ -4,15 +4,13 @@ pub mod button;
 pub mod character;
 pub mod command;
 pub mod component;
-pub mod node;
 pub mod position;
 pub mod util;
 
-use crate::TestEvent;
 
 use self::{
     bounds::AsciiBoundsPlugin, button::AsciiButton, character::Character,
-    component::AsciiComponentPlugin, node::AsciiNode, position::AsciiPositionPlugin, util::AsciiUtils,
+    component::AsciiComponentPlugin, position::AsciiPositionPlugin, util::AsciiUtils,
 };
 use bevy::prelude::*;
 
@@ -24,15 +22,16 @@ pub struct AsciiUiPlugin;
 
 impl Plugin for AsciiUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(AsciiBoundsPlugin)
+        app
+            .register_type::<AsciiUi>()
+            .add_plugins(AsciiBoundsPlugin)
             .add_plugins(AsciiPositionPlugin)
             .add_plugins(AsciiUtils)
-            .add_plugins(AsciiComponentPlugin::<AsciiButton>::default());
-
-        app
-            .register_type::<AsciiNode>()
-            // .add_systems(PostUpdate, (update_is_dirty, update_bounds).chain())
-            // .add_systems(PreUpdate, prepare_ui)
+            .add_plugins(AsciiComponentPlugin::<AsciiButton>::default())
+        
+            .add_event::<AsciiRerenderUiEvent>()
+            .add_systems(PreUpdate, clean_ui)
+            .add_systems(PostUpdate, mark_ui_dirty)
         ;
     }
 }
@@ -41,7 +40,7 @@ impl Plugin for AsciiUiPlugin {
 //             Ascii UiComponent
 //=============================================================================
 
-#[derive(Default, Component)]
+#[derive(Default, Component, Reflect)]
 pub struct AsciiUi {
     // nodes: Vec<Arc<Mutex<Box<dyn AsciiUiNode + Send + Sync>>>>,
     is_dirty: bool,
@@ -50,6 +49,32 @@ pub struct AsciiUi {
 impl AsciiUi {
     pub fn is_dirty(&self) -> bool {
         self.is_dirty
+    }
+}
+
+//=============================================================================
+//             Rerender Ui Event
+//=============================================================================
+
+#[derive(Event, Debug, Clone, Reflect, PartialEq, Eq)]
+pub struct AsciiRerenderUiEvent;
+
+fn mark_ui_dirty(
+    mut ui: Query<&mut AsciiUi>,
+    mut events : EventReader<AsciiRerenderUiEvent>
+) {
+    if !events.is_empty() {
+        for mut ui in ui.iter_mut() {
+            ui.is_dirty = true;
+        }
+    }
+}
+
+fn clean_ui( 
+    mut ui: Query<&mut AsciiUi>
+) {
+    for mut ui in ui.iter_mut() {
+        ui.is_dirty = false;
     }
 }
 

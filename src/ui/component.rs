@@ -1,24 +1,21 @@
-use std::{io::IsTerminal, marker::PhantomData};
+use std::marker::PhantomData;
 
 use bevy::{
-    ecs::{
-        query::WorldQuery,
-        system::{StaticSystemParam, SystemParam},
-    },
+    ecs::
+        system::{StaticSystemParam, SystemParam}
+    ,
     prelude::*,
-    render::{extract_component, view::RenderLayers, Extract, RenderApp},
+    render::{view::RenderLayers, Extract, RenderApp},
 };
 
 use crate::{
     ascii::AsciiCamera,
-    render::{ascii::OverlayBuffer, extract_camera},
+    render::ascii::OverlayBuffer,
 };
 
 use super::{
     bounds::{AsciiBounds, AsciiGlobalBounds},
     buffer::AsciiBuffer,
-    node::AsciiNode,
-    AsciiUi,
 };
 
 //=============================================================================
@@ -66,7 +63,7 @@ fn update_components<C: AsciiComponent>(
 pub fn extract_ascii_ui<C: AsciiComponent>(
     ascii_cameras: Query<(&OverlayBuffer, Option<&RenderLayers>), With<AsciiCamera>>,
     ui_elements: Extract<Query<(&AsciiGlobalBounds, &C, Option<&RenderLayers>)>>,
-) {
+) {    
     for (buffer, camera_render_layers) in ascii_cameras.iter() {
         for (global_bounds, component, component_render_layer) in ui_elements.iter() {
             match (component_render_layer, camera_render_layers) {
@@ -82,8 +79,8 @@ pub fn extract_ascii_ui<C: AsciiComponent>(
             }
 
             let surface = &buffer.0;
-            let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds);
-
+            let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds, global_bounds.clip_bounds);
+            
             component.render(&mut buffer);
         }
     }
@@ -96,15 +93,17 @@ pub fn extract_ascii_ui<C: AsciiComponent>(
 pub trait AsciiComponent: Component {
     type UpdateQuery<'w, 's> : SystemParam;
 
+    #[allow(unused_variables)]
     fn render(&self, buffer: &mut AsciiBuffer) {}
 
+    #[allow(unused_variables)]
     fn update(
         &mut self,
         query: &mut <Self::UpdateQuery<'_, '_> as SystemParam>::Item<'_, '_>,
         bounds: &AsciiBounds,
         entity: Entity
-    ) {
-    }
+    ) {}
 
+    #[allow(unused_variables)]
     fn set_up(app: &mut App) {}
 }

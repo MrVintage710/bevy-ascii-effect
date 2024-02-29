@@ -13,8 +13,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use ui::{
-    bounds::AsciiGlobalBounds, button::AsciiButton, node::AsciiNode, position::AsciiPosition,
-    AsciiUi, HorizontalAlignment, VerticalAlignment,
+    bounds::AsciiGlobalBounds, button::AsciiButton, position::AsciiPosition, AsciiUi, HorizontalAlignment, VerticalAlignment
 };
 
 fn main() {
@@ -73,13 +72,13 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
             AsciiGlobalBounds::new(10, 10, 20, 15),
             AsciiButton::from_string("Test"),
         ))
-        // .with_children(|entity| {
-        //     entity.spawn((
-        //         AsciiPosition::align(6, 6, HorizontalAlignment::Center, VerticalAlignment::Center),
-        //         AsciiGlobalBounds::default(),
-        //         AsciiButton::from_string("Test"),
-        //     ));
-        // })
+        .with_children(|entity| {
+            entity.spawn((
+                AsciiPosition::align(6, 6, HorizontalAlignment::Right, VerticalAlignment::Top),
+                AsciiGlobalBounds::default(),
+                AsciiButton::from_string("Test"),
+            ));
+        })
         .id();
 
     // commands.entity(camera).add_child(ui);

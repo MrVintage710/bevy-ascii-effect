@@ -3,7 +3,7 @@ use bevy::{
 };
 
 use super::{
-    buffer::AsciiBuffer, character::Color, component::AsciiComponent, util::{AsciiComponentButtonClicked, AsciiComponentHoverEnteredEvent, AsciiComponentHoverExitedEvent, AsciiCursor}, BorderType, HorizontalAlignment, VerticalAlignment
+    buffer::AsciiBuffer, character::Color, component::AsciiComponent, util::{AsciiComponentButtonClicked, AsciiComponentHoverEnteredEvent, AsciiComponentHoverExitedEvent, AsciiCursor}, AsciiRerenderUiEvent, BorderType, HorizontalAlignment, VerticalAlignment
 };
 
 #[derive(Component)]
@@ -39,7 +39,8 @@ impl AsciiComponent for AsciiButton {
         Res<'w, Input<MouseButton>>,
         EventWriter<'w, AsciiComponentHoverEnteredEvent>,
         EventWriter<'w, AsciiComponentHoverExitedEvent>,
-        EventWriter<'w, AsciiComponentButtonClicked>
+        EventWriter<'w, AsciiComponentButtonClicked>,
+        EventWriter<'w, AsciiRerenderUiEvent>
     );
 
     fn render(&self, buffer: &mut AsciiBuffer) {
@@ -73,11 +74,13 @@ impl AsciiComponent for AsciiButton {
             if bounds.is_within(*x as i32, *y as i32) {
                 if !self.is_hovering {
                     query.2.send(AsciiComponentHoverEnteredEvent(entity));
+                    query.5.send(AsciiRerenderUiEvent);
                 }
                 self.is_hovering = true;
             } else {
                 if self.is_hovering {
                     query.3.send(AsciiComponentHoverExitedEvent(entity));
+                    query.5.send(AsciiRerenderUiEvent);
                 }
                 self.is_hovering = false;
             }

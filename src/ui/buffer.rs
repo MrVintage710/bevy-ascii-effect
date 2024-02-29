@@ -15,19 +15,16 @@ use super::{
 pub struct AsciiBuffer {
     surface: AsciiSurface,
     pub bounds: AsciiBounds,
+    should_clip : bool,
 }
 
 impl AsciiBuffer {
-    pub fn new(surface: &AsciiSurface, bounds: &AsciiBounds) -> Self {
+    pub fn new(surface: &AsciiSurface, bounds: &AsciiBounds, should_clip : bool) -> Self {
         AsciiBuffer {
             surface: surface.clone(),
             bounds: bounds.clone(),
+            should_clip
         }
-    }
-
-    pub fn with_layer(mut self, layer: u32) -> Self {
-        self.bounds.layer = layer;
-        self
     }
 
     pub fn set_character(&self, x: i32, y: i32, character: impl Into<AsciiCharacter>) {
@@ -46,6 +43,7 @@ impl AsciiBuffer {
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
                 bounds: AsciiBounds::new(x, y, width, height),
+                should_clip: self.should_clip
             });
         }
 
@@ -74,6 +72,7 @@ impl AsciiBuffer {
                 width.min(self.bounds.width),
                 height.min(self.bounds.height),
             ),
+            should_clip: self.should_clip
         }
     }
 
@@ -93,6 +92,7 @@ impl AsciiBuffer {
                     width,
                     self.bounds.height,
                 ),
+                should_clip: self.should_clip
             };
             buffers.push(buffer);
             x += width as i32;
@@ -121,6 +121,7 @@ impl AsciiBuffer {
                     self.bounds.width,
                     height,
                 ),
+                should_clip: self.should_clip
             };
             buffers.push(buffer);
             y += height as i32;
@@ -282,6 +283,10 @@ impl AsciiSurface {
             .flatten()
             .collect();
         result
+    }
+    
+    pub fn clear(&self) {
+        self.data.lock().expect("Error while clearing surface: data is poisoned.").clear();
     }
 
     pub fn len(&self) -> usize {

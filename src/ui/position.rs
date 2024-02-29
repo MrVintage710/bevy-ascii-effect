@@ -3,8 +3,7 @@ use bevy::{prelude::*, utils::HashSet};
 use crate::ascii::AsciiCamera;
 
 use super::{
-    bounds::{AsciiBounds, AsciiGlobalBounds},
-    HorizontalAlignment, Padding, VerticalAlignment,
+    bounds::{AsciiBounds, AsciiGlobalBounds}, AsciiRerenderUiEvent, HorizontalAlignment, Padding, VerticalAlignment
 };
 
 //=============================================================================
@@ -31,6 +30,7 @@ fn mark_positions_dirty(
         Ref<AsciiPosition>,
         Option<&Children>,
     )>,
+    mut ui_rerender_event : EventWriter<AsciiRerenderUiEvent>,
 ) {
     let entities = changed_bounds
         .iter()
@@ -54,6 +54,10 @@ fn mark_positions_dirty(
         dirty.insert(entity);
     }
 
+    if !dirty.is_empty() {
+        ui_rerender_event.send(AsciiRerenderUiEvent);
+    }
+    
     for (entity, mut global_bounds, _, _) in changed_bounds.iter_mut() {
         if dirty.contains(&entity) || global_bounds.is_changed() {
             global_bounds.is_dirty = true;

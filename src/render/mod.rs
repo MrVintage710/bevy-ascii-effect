@@ -272,18 +272,16 @@ pub(crate) fn extract_camera(
             }
 
             if let Some(ascii_ui) = ascii_ui {
-                if !*is_initialized {
+                if ascii_ui.is_dirty() || !*is_initialized {
+                    println!("Render UI");
                     *last_surface = AsciiSurface::new(
                         pixel_camera.target_res().x as u32,
                         pixel_camera.target_res().y as u32,
                     );
-                }
-
-                if ascii_ui.is_dirty() || !*is_initialized {
                     entity.insert(OverlayBuffer(last_surface.clone()));
                 }
 
-                *is_initialized = false;
+                *is_initialized = true;
             }
         }
     }
@@ -301,10 +299,7 @@ pub fn prepare_shader_textures(
     acsii_cameras: Query<(Entity, &AsciiCamera, Option<&OverlayBuffer>)>,
     render_device: ResMut<RenderDevice>,
     render_queue: ResMut<RenderQueue>,
-    windows: Res<ExtractedWindows>,
 ) {
-    let window = windows.windows.get(&windows.primary.unwrap()).unwrap();
-
     for (entity, ascii_camera, overlay_buffer) in acsii_cameras.iter() {
         let target_resolution = ascii_camera.target_res();
         //First check to see if the render texture for the pixel shader needs updating.
