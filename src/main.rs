@@ -29,6 +29,7 @@ fn main() {
         .add_systems(Update, close_on_esc)
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
+        .add_event::<TestEvent>()
         .run();
 }
 
@@ -72,14 +73,13 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
             AsciiGlobalBounds::new(10, 10, 20, 15),
             AsciiButton::from_string("Test"),
         ))
-        .with_children(|entity| {
-            entity.spawn((
-                AsciiPosition::align(6, 6, HorizontalAlignment::Center, VerticalAlignment::Center),
-                AsciiGlobalBounds::default(),
-                AsciiNode::default(),
-                AsciiButton::from_string("Test"),
-            ));
-        })
+        // .with_children(|entity| {
+        //     entity.spawn((
+        //         AsciiPosition::align(6, 6, HorizontalAlignment::Center, VerticalAlignment::Center),
+        //         AsciiGlobalBounds::default(),
+        //         AsciiButton::from_string("Test"),
+        //     ));
+        // })
         .id();
 
     // commands.entity(camera).add_child(ui);
@@ -100,3 +100,6 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     });
 }
+
+#[derive(Event, Clone, Copy)]
+pub struct TestEvent;

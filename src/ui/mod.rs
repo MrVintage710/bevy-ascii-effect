@@ -6,10 +6,13 @@ pub mod command;
 pub mod component;
 pub mod node;
 pub mod position;
+pub mod util;
+
+use crate::TestEvent;
 
 use self::{
     bounds::AsciiBoundsPlugin, button::AsciiButton, character::Character,
-    component::AsciiComponentPlugin, node::AsciiNode, position::AsciiPositionPlugin,
+    component::AsciiComponentPlugin, node::AsciiNode, position::AsciiPositionPlugin, util::AsciiUtils,
 };
 use bevy::prelude::*;
 
@@ -23,6 +26,7 @@ impl Plugin for AsciiUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(AsciiBoundsPlugin)
             .add_plugins(AsciiPositionPlugin)
+            .add_plugins(AsciiUtils)
             .add_plugins(AsciiComponentPlugin::<AsciiButton>::default());
 
         app

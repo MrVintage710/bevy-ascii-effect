@@ -38,7 +38,6 @@ pub(crate) struct AsciiShaderPipeline {
     pub sampler: Sampler,
     pub font_texture: TextureView,
     pub pipeline_id: CachedRenderPipelineId,
-    pub overlay: Option<Vec<u8>>,
 }
 
 impl FromWorld for AsciiShaderPipeline {
@@ -189,7 +188,6 @@ impl FromWorld for AsciiShaderPipeline {
             sampler,
             font_texture,
             pipeline_id,
-            overlay: None,
         }
     }
 }

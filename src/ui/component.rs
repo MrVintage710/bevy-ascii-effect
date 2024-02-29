@@ -54,12 +54,12 @@ impl<AC: AsciiComponent> Plugin for AsciiComponentPlugin<AC> {
 //=============================================================================
 
 fn update_components<C: AsciiComponent>(
-    mut nodes: Query<(&mut C, &AsciiGlobalBounds)>,
-    mut query: StaticSystemParam<C::UpdateQuery>,
+    mut nodes: Query<(Entity, &mut C, &AsciiGlobalBounds)>,
+    mut query: StaticSystemParam<C::UpdateQuery<'_, '_>>,
 ) {
     // let query = *query;
-    for (mut component, global_bounds) in nodes.iter_mut() {
-        component.update(&mut (*query), &global_bounds.bounds);
+    for (entity, mut component, global_bounds) in nodes.iter_mut() {
+        component.update(&mut (*query), &global_bounds.bounds, entity);
     }
 }
 
@@ -94,14 +94,15 @@ pub fn extract_ascii_ui<C: AsciiComponent>(
 //=============================================================================
 
 pub trait AsciiComponent: Component {
-    type UpdateQuery: SystemParam;
+    type UpdateQuery<'w, 's> : SystemParam;
 
     fn render(&self, buffer: &mut AsciiBuffer) {}
 
     fn update(
         &mut self,
-        query: &mut <Self::UpdateQuery as SystemParam>::Item<'_, '_>,
+        query: &mut <Self::UpdateQuery<'_, '_> as SystemParam>::Item<'_, '_>,
         bounds: &AsciiBounds,
+        entity: Entity
     ) {
     }
 

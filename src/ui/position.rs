@@ -59,12 +59,6 @@ fn mark_positions_dirty(
             global_bounds.is_dirty = true;
         }
     }
-
-    // for entity in dirty {
-    //     if let Ok((_, mut global_bounds, _, _)) = changed_bounds.get_mut(entity) {
-    //         global_bounds.is_dirty = true;
-    //     }
-    // )
 }
 
 fn get_children(

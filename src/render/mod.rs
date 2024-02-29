@@ -4,15 +4,13 @@ mod pixel;
 
 use bevy::{
     app::Plugin,
-    core_pipeline::{core_3d, prepass::ViewPrepassTextures},
+    core_pipeline::core_3d,
     prelude::*,
     render::{
-        self,
         render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner},
         render_resource::{
-            BindGroupEntries, Extent3d, ImageCopyTexture, ImageDataLayout, Operations, Origin3d,
-            PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-            TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+            BindGroupEntries, Extent3d, ImageDataLayout, Operations, PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+            TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
             TextureView, TextureViewDescriptor,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
@@ -21,14 +19,12 @@ use bevy::{
         Extract, Render, RenderApp, RenderSet,
     },
 };
-use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
+
 
 use crate::{
-    ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
+    ascii::AsciiCamera,
     ui::{
-        bounds::AsciiGlobalBounds,
-        buffer::{AsciiBuffer, AsciiSurface},
-        node::AsciiNode,
+        buffer::AsciiSurface,
         AsciiUi,
     },
 };
