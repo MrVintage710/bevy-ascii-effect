@@ -1,5 +1,5 @@
 [package]
-name = "ascii-test"
+name = "bevy-ascii"
 version = "0.1.0"
 edition = "2021"
 
