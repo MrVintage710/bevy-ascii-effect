@@ -1,6 +1,6 @@
 use bevy::{
     app::Plugin,
-    core_pipeline::prepass::DepthPrepass,
+    core_pipeline::prepass::{DepthPrepass},
     prelude::*,
     render::{
         camera::RenderTarget,
@@ -9,11 +9,11 @@ use bevy::{
     },
     window::{PrimaryWindow, WindowRef, WindowResized},
 };
-use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
+use bevy_inspector_egui::InspectorOptions;
 
 use crate::{
     render::AsciiRendererPlugin,
-    ui::{AsciiUi, AsciiUiPlugin},
+    ui::AsciiUiPlugin,
 };
 
 //=============================================================================
@@ -90,7 +90,7 @@ impl AsciiCamera {
 
         let mut dyn_buffer: DynamicUniformBuffer<AsciiShaderSettingsBuffer> =
             DynamicUniformBuffer::default();
-        let mut writer = dyn_buffer.get_writer(1, device, queue);
+        let writer = dyn_buffer.get_writer(1, device, queue);
         writer.unwrap().write(&ascii_buffer);
 
         dyn_buffer
