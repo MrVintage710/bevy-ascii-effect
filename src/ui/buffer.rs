@@ -1,7 +1,11 @@
-use std::sync::{Arc, Mutex};
 use bevy::{ecs::component::Component, reflect::Reflect};
+use std::sync::{Arc, Mutex};
 
-use super::{bounds::AsciiBounds, character::{AsciiCharacter, Color}, BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment};
+use super::{
+    bounds::AsciiBounds,
+    character::{AsciiCharacter, Color},
+    BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment,
+};
 
 //=============================================================================
 //             Ascii Buffer
@@ -10,26 +14,27 @@ use super::{bounds::AsciiBounds, character::{AsciiCharacter, Color}, BorderType,
 #[derive(Clone)]
 pub struct AsciiBuffer {
     surface: AsciiSurface,
-    pub bounds : AsciiBounds,
+    pub bounds: AsciiBounds,
 }
 
 impl AsciiBuffer {
-    pub fn new(surface : &AsciiSurface, bounds : &AsciiBounds) -> Self {
-       AsciiBuffer {
-           surface: surface.clone(),
-           bounds: bounds.clone(),
-       }
+    pub fn new(surface: &AsciiSurface, bounds: &AsciiBounds) -> Self {
+        AsciiBuffer {
+            surface: surface.clone(),
+            bounds: bounds.clone(),
+        }
     }
-    
-    pub fn with_layer(mut self, layer : u32) -> Self {
-       self.bounds.layer = layer;
-       self
+
+    pub fn with_layer(mut self, layer: u32) -> Self {
+        self.bounds.layer = layer;
+        self
     }
-    
+
     pub fn set_character(&self, x: i32, y: i32, character: impl Into<AsciiCharacter>) {
         if self.bounds.is_within_local(x, y) {
             let character = character.into().with_layer(self.bounds.layer);
-            self.surface.set_character(self.bounds.x + x, self.bounds.y + y, character);
+            self.surface
+                .set_character(self.bounds.x + x, self.bounds.y + y, character);
         }
     }
 
@@ -40,14 +45,14 @@ impl AsciiBuffer {
 
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
-                bounds : AsciiBounds::new(x, y, width, height),
+                bounds: AsciiBounds::new(x, y, width, height),
             });
         }
 
         None
     }
-    
-    pub fn top(&self, size : u32) -> (AsciiBuffer, Option<AsciiBuffer>) {
+
+    pub fn top(&self, size: u32) -> (AsciiBuffer, Option<AsciiBuffer>) {
         let mut top = self.clone();
         if size < self.bounds.height {
             let mut bottom = self.clone();
@@ -63,7 +68,7 @@ impl AsciiBuffer {
     pub fn center(&self, width: u32, height: u32) -> AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
-            bounds : AsciiBounds::new(
+            bounds: AsciiBounds::new(
                 ((self.bounds.width / 2) - (width / 2)) as i32,
                 ((self.bounds.height / 2) - (height / 2)) as i32,
                 width.min(self.bounds.width),
@@ -71,8 +76,8 @@ impl AsciiBuffer {
             ),
         }
     }
-    
-    pub fn vertical_split<const COUNT : usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
+
+    pub fn vertical_split<const COUNT: usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
         let width = self.bounds.width / COUNT as u32;
         if width == 0 {
             return None;
@@ -82,20 +87,25 @@ impl AsciiBuffer {
         for _ in 0..COUNT {
             let buffer = AsciiBuffer {
                 surface: self.surface.clone(),
-                bounds : AsciiBounds::new(self.bounds.x + x, self.bounds().y, width, self.bounds.height),
+                bounds: AsciiBounds::new(
+                    self.bounds.x + x,
+                    self.bounds().y,
+                    width,
+                    self.bounds.height,
+                ),
             };
             buffers.push(buffer);
             x += width as i32;
         }
-        
+
         if let Ok(buffer) = buffers.try_into() {
             Some(buffer)
         } else {
             None
         }
     }
-    
-    pub fn horizontal_split<const COUNT : usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
+
+    pub fn horizontal_split<const COUNT: usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
         let height = self.bounds.width / COUNT as u32;
         if height == 0 {
             return None;
@@ -105,24 +115,31 @@ impl AsciiBuffer {
         for _ in 0..COUNT {
             let buffer = AsciiBuffer {
                 surface: self.surface.clone(),
-                bounds : AsciiBounds::new(self.bounds.x, self.bounds.y + y, self.bounds.width, height),
+                bounds: AsciiBounds::new(
+                    self.bounds.x,
+                    self.bounds.y + y,
+                    self.bounds.width,
+                    height,
+                ),
             };
             buffers.push(buffer);
             y += height as i32;
         }
-        
+
         if let Ok(buffer) = buffers.try_into() {
             Some(buffer)
         } else {
             None
         }
     }
-    
-    pub fn padding(&self, padding : impl Into<Padding>) -> AsciiBuffer {
+
+    pub fn padding(&self, padding: impl Into<Padding>) -> AsciiBuffer {
         let padding = padding.into();
         let mut buffer = self.clone();
-        let horizontal_difference = buffer.bounds.width as i32 - padding.left as i32 - padding.right as i32;
-        let vertical_difference = buffer.bounds.height as i32 - padding.top as i32 - padding.bottom as i32;
+        let horizontal_difference =
+            buffer.bounds.width as i32 - padding.left as i32 - padding.right as i32;
+        let vertical_difference =
+            buffer.bounds.height as i32 - padding.top as i32 - padding.bottom as i32;
         if horizontal_difference <= 0 || vertical_difference <= 0 {
             return buffer;
         }
@@ -146,8 +163,8 @@ impl AsciiBuffer {
             border: BorderType::None,
         }
     }
-    
-    pub fn text(&self, text : &str) -> AsciiTextDrawer {
+
+    pub fn text(&self, text: &str) -> AsciiTextDrawer {
         AsciiTextDrawer {
             buffer: self,
             text_color: Color::White,
@@ -156,10 +173,10 @@ impl AsciiBuffer {
             horizontal_alignment: HorizontalAlignment::Left,
             vertical_alignment: VerticalAlignment::Top,
             overflow: TextOverflow::default(),
-            should_wrap: false
+            should_wrap: false,
         }
     }
-    
+
     pub fn bounds(&self) -> &AsciiBounds {
         &self.bounds
     }
@@ -171,9 +188,9 @@ impl AsciiBuffer {
 
 #[derive(Clone)]
 pub struct AsciiSurface {
-    width : u32,
-    height : u32,
-    data : Arc<Mutex<Vec<AsciiCharacter>>>,
+    width: u32,
+    height: u32,
+    data: Arc<Mutex<Vec<AsciiCharacter>>>,
 }
 
 impl Default for AsciiSurface {
@@ -187,34 +204,66 @@ impl Default for AsciiSurface {
 }
 
 impl AsciiSurface {
-    pub fn new(width : u32, height : u32) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         let data = vec![AsciiCharacter::default(); (width * height) as usize];
-        Self { width, height, data : Arc::new(Mutex::new(data)) }
+        Self {
+            width,
+            height,
+            data: Arc::new(Mutex::new(data)),
+        }
     }
-    
-    pub fn set_character(&self, x : i32, y : i32, character : AsciiCharacter) {
-        let Ok(mut data) = self.data.lock() else {return};
-        let Some(index) = self.calc_index(x, y) else { return };
+
+    pub fn set_character(&self, x: i32, y: i32, character: AsciiCharacter) {
+        let Ok(mut data) = self.data.lock() else {
+            return;
+        };
+        let Some(index) = self.calc_index(x, y) else {
+            return;
+        };
         if index < data.len() {
             let data = &mut data[index];
             let layer_test = match (&character, &data) {
                 (
-                    AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : input_layer }, 
-                    AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : data_layer }
-                ) => {
-                    input_layer >= data_layer
-                },
-                (AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : _ }, AsciiCharacter::Unset) => true,
-                (AsciiCharacter::Unset, AsciiCharacter::Set { index : _, text_color : _, background_color : _, layer : _ }) => true,
+                    AsciiCharacter::Set {
+                        index: _,
+                        text_color: _,
+                        background_color: _,
+                        layer: input_layer,
+                    },
+                    AsciiCharacter::Set {
+                        index: _,
+                        text_color: _,
+                        background_color: _,
+                        layer: data_layer,
+                    },
+                ) => input_layer >= data_layer,
+                (
+                    AsciiCharacter::Set {
+                        index: _,
+                        text_color: _,
+                        background_color: _,
+                        layer: _,
+                    },
+                    AsciiCharacter::Unset,
+                ) => true,
+                (
+                    AsciiCharacter::Unset,
+                    AsciiCharacter::Set {
+                        index: _,
+                        text_color: _,
+                        background_color: _,
+                        layer: _,
+                    },
+                ) => true,
                 (AsciiCharacter::Unset, AsciiCharacter::Unset) => false,
             };
-            
+
             if layer_test {
                 *data = character;
             }
         }
     }
-    
+
     fn calc_index(&self, x: i32, y: i32) -> Option<usize> {
         if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
             return None;
@@ -222,7 +271,7 @@ impl AsciiSurface {
             Some((x as u32 + (y as u32 * self.width)) as usize)
         }
     }
-    
+
     pub fn as_byte_vec(&self) -> Vec<u8> {
         let result = self
             .data
@@ -234,7 +283,7 @@ impl AsciiSurface {
             .collect();
         result
     }
-    
+
     pub fn len(&self) -> usize {
         (self.width * self.height) as usize
     }
@@ -265,20 +314,19 @@ impl<'b> AsciiBoxDrawer<'b> {
             }
         }
 
-        self.buffer
-            .sub_buffer(
-                self.buffer.bounds.x + 1, 
-                self.buffer.bounds.y + 1, 
-                self.buffer.bounds.width.saturating_sub(2), 
-                self.buffer.bounds.height.saturating_sub(2)
-            )
+        self.buffer.sub_buffer(
+            self.buffer.bounds.x + 1,
+            self.buffer.bounds.y + 1,
+            self.buffer.bounds.width.saturating_sub(2),
+            self.buffer.bounds.height.saturating_sub(2),
+        )
     }
 
     fn calc_character(&mut self, x: u32, y: u32) -> AsciiCharacter {
         let max_title_width = self.buffer.bounds.width as i32 - 4;
-        let character = self
-            .border
-            .get_character(x, y, self.buffer.bounds.width, self.buffer.bounds.height);
+        let character =
+            self.border
+                .get_character(x, y, self.buffer.bounds.width, self.buffer.bounds.height);
         if max_title_width < 2 {
             return (character, self.border_color, self.bg_color).into();
         }
@@ -370,68 +418,78 @@ pub struct AsciiTextDrawer<'b> {
     should_wrap: bool,
 }
 
-impl <'b> AsciiTextDrawer<'b> {
-    
+impl<'b> AsciiTextDrawer<'b> {
     pub fn draw(self) {
-        let lines : Vec<String> = if self.should_wrap {
+        let lines: Vec<String> = if self.should_wrap {
             let lines = textwrap::wrap(self.text.as_str(), self.buffer.bounds.width as usize);
             lines.iter().map(|s| s.to_string()).collect()
         } else {
-            self.text.lines().map(|s| s.to_string()).collect::<Vec<String>>()
+            self.text
+                .lines()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
         };
-        
+
         for line in 0..self.buffer.bounds.height as usize {
-            let Some(text) = lines.get(line) else {break};
-            
+            let Some(text) = lines.get(line) else { break };
+
             let start_x = match self.horizontal_alignment {
                 HorizontalAlignment::Left => 0,
-                HorizontalAlignment::Center => (self.buffer.bounds.width as f32 / 2.0 - text.len() as f32 / 2.0).floor() as i32,
-                HorizontalAlignment::Right => self.buffer.bounds.width as i32 - text.len() as i32 - 1,
+                HorizontalAlignment::Center => {
+                    (self.buffer.bounds.width as f32 / 2.0 - text.len() as f32 / 2.0).floor() as i32
+                }
+                HorizontalAlignment::Right => {
+                    self.buffer.bounds.width as i32 - text.len() as i32 - 1
+                }
             };
-            
+
             let start_y = match self.vertical_alignment {
                 VerticalAlignment::Top => 0,
-                VerticalAlignment::Center => (self.buffer.bounds.height as f32 / 2.0 - lines.len() as f32 / 2.0).floor() as i32,
-                VerticalAlignment::Bottom => self.buffer.bounds.height as i32 - lines.len() as i32 - 1,
+                VerticalAlignment::Center => (self.buffer.bounds.height as f32 / 2.0
+                    - lines.len() as f32 / 2.0)
+                    .floor() as i32,
+                VerticalAlignment::Bottom => {
+                    self.buffer.bounds.height as i32 - lines.len() as i32 - 1
+                }
             };
-            
+
             for column in 0..(self.buffer.bounds.width - 1) as usize {
                 if let Some(c) = text.chars().nth(column) {
                     self.buffer.set_character(
-                        start_x + column as i32, 
-                        start_y + line as i32, 
-                        (c, self.text_color, self.bg_color)
+                        start_x + column as i32,
+                        start_y + line as i32,
+                        (c, self.text_color, self.bg_color),
                     );
                 }
             }
         }
     }
-    
+
     pub fn bg_color(mut self, bg_color: Color) -> Self {
         self.bg_color = bg_color;
         self
     }
-    
+
     pub fn text_color(mut self, text_color: Color) -> Self {
         self.text_color = text_color;
         self
     }
-    
+
     pub fn horizontal_alignment(mut self, alignment: HorizontalAlignment) -> Self {
         self.horizontal_alignment = alignment;
         self
     }
-    
+
     pub fn overflow(mut self, overflow: TextOverflow) -> Self {
         self.overflow = overflow;
         self
     }
-    
+
     pub fn wrap(mut self) -> Self {
         self.should_wrap = true;
         self
     }
-    
+
     pub fn vertical_alignment(mut self, alignment: VerticalAlignment) -> Self {
         self.vertical_alignment = alignment;
         self

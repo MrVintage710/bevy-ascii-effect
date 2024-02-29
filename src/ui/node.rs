@@ -1,4 +1,3 @@
-
 use bevy::{ecs::query::WorldQuery, prelude::*};
 
 use super::{bounds::AsciiBounds, buffer::AsciiBuffer};
@@ -11,9 +10,7 @@ pub struct AsciiNodePlugin;
 
 impl Plugin for AsciiNodePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_event::<MarkNodeDirtyEvent>()
-        ;
+        app.add_event::<MarkNodeDirtyEvent>();
     }
 }
 
@@ -23,9 +20,9 @@ impl Plugin for AsciiNodePlugin {
 
 #[derive(Default, Component, Reflect)]
 pub struct AsciiNode {
-    pub clip_bounds : bool,
-    pub is_dirty : bool,
-    pub order : u32,
+    pub clip_bounds: bool,
+    pub is_dirty: bool,
+    pub order: u32,
 }
 
 //=============================================================================
@@ -34,6 +31,3 @@ pub struct AsciiNode {
 
 #[derive(Event)]
 pub struct MarkNodeDirtyEvent(pub Entity);
-
-
-

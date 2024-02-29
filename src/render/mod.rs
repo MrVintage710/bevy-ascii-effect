@@ -25,7 +25,12 @@ use bevy_inspector_egui::{quick::ResourceInspectorPlugin, InspectorOptions};
 
 use crate::{
     ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
-    ui::{bounds::AsciiGlobalBounds, buffer::{AsciiBuffer, AsciiSurface}, node::AsciiNode, AsciiUi},
+    ui::{
+        bounds::AsciiGlobalBounds,
+        buffer::{AsciiBuffer, AsciiSurface},
+        node::AsciiNode,
+        AsciiUi,
+    },
 };
 
 use self::{
@@ -249,28 +254,39 @@ fn pixel_pass(
 
 pub(crate) fn extract_camera(
     mut commands: Commands,
-    cameras: Extract<Query<(Entity, &Camera, &AsciiCamera, Option<&AsciiUi>, Option<&RenderLayers>)>>,
+    cameras: Extract<
+        Query<(
+            Entity,
+            &Camera,
+            &AsciiCamera,
+            Option<&AsciiUi>,
+            Option<&RenderLayers>,
+        )>,
+    >,
     mut is_initialized: Local<bool>,
-    mut last_surface : Local<AsciiSurface>
+    mut last_surface: Local<AsciiSurface>,
 ) {
     for (entity, camera, pixel_camera, ascii_ui, render_layers) in &cameras {
         if camera.is_active && pixel_camera.should_render {
             let mut entity = commands.get_or_spawn(entity);
             entity.insert(pixel_camera.clone());
-            
+
             if let Some(render_layer) = render_layers {
                 entity.insert(render_layer.clone());
             }
-            
+
             if let Some(ascii_ui) = ascii_ui {
                 if !*is_initialized {
-                    *last_surface = AsciiSurface::new(pixel_camera.target_res().x as u32, pixel_camera.target_res().y as u32);
+                    *last_surface = AsciiSurface::new(
+                        pixel_camera.target_res().x as u32,
+                        pixel_camera.target_res().y as u32,
+                    );
                 }
-                
-                if ascii_ui.is_dirty() || !*is_initialized{
+
+                if ascii_ui.is_dirty() || !*is_initialized {
                     entity.insert(OverlayBuffer(last_surface.clone()));
                 }
-                
+
                 *is_initialized = false;
             }
         }

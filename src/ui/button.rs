@@ -1,6 +1,12 @@
-use bevy::{ecs::{component::Component, system::Query}, input::mouse::MouseButton};
+use bevy::{
+    ecs::{component::Component, system::Query},
+    input::mouse::MouseButton,
+};
 
-use super::{buffer::AsciiBuffer, character::Color, component::AsciiComponent, BorderType, HorizontalAlignment, VerticalAlignment};
+use super::{
+    buffer::AsciiBuffer, character::Color, component::AsciiComponent, BorderType,
+    HorizontalAlignment, VerticalAlignment,
+};
 
 #[derive(Component)]
 pub struct AsciiButton {
@@ -11,23 +17,20 @@ pub struct AsciiButton {
 }
 
 impl AsciiButton {
-    pub fn from_string(text : &str) -> Self {
+    pub fn from_string(text: &str) -> Self {
         AsciiButton {
-            bg_color : Color::Black,
-            hover_color : Color::Grey,
-            is_hovering : false,
-            button_text : text.to_string(),
+            bg_color: Color::Black,
+            hover_color: Color::Grey,
+            is_hovering: false,
+            button_text: text.to_string(),
         }
     }
 }
 
 impl AsciiComponent for AsciiButton {
-    type UpdateQuery = (
-        
-    );
+    type UpdateQuery = ();
 
-    fn render(&self, buffer : &mut AsciiBuffer) {
+    fn render(&self, buffer: &mut AsciiBuffer) {
         buffer.square().border(BorderType::Full).draw();
     }
 }
-

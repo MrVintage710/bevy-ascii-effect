@@ -1,4 +1,7 @@
-use crate::{ascii::{AsciiCamera, AsciiShaderSettingsBuffer}, ui::buffer::AsciiSurface};
+use crate::{
+    ascii::{AsciiCamera, AsciiShaderSettingsBuffer},
+    ui::buffer::AsciiSurface,
+};
 use bevy::{
     asset::AssetServer,
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,

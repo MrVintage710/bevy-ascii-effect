@@ -1,14 +1,17 @@
+pub mod bounds;
 pub mod buffer;
 pub mod button;
-pub mod node;
-pub mod command;
 pub mod character;
+pub mod command;
 pub mod component;
-pub mod bounds;
+pub mod node;
 pub mod position;
 
+use self::{
+    bounds::AsciiBoundsPlugin, button::AsciiButton, character::Character,
+    component::AsciiComponentPlugin, node::AsciiNode, position::AsciiPositionPlugin,
+};
 use bevy::prelude::*;
-use self::{bounds::AsciiBoundsPlugin, button::AsciiButton, character::Character, component::AsciiComponentPlugin, node::AsciiNode, position::AsciiPositionPlugin};
 
 //=============================================================================
 //             Ascii UI Plugin
@@ -18,12 +21,10 @@ pub struct AsciiUiPlugin;
 
 impl Plugin for AsciiUiPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_plugins(AsciiBoundsPlugin)
+        app.add_plugins(AsciiBoundsPlugin)
             .add_plugins(AsciiPositionPlugin)
-            .add_plugins(AsciiComponentPlugin::<AsciiButton>::default())
-        ;
-        
+            .add_plugins(AsciiComponentPlugin::<AsciiButton>::default());
+
         app
             .register_type::<AsciiNode>()
             // .add_systems(PostUpdate, (update_is_dirty, update_bounds).chain())

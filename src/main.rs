@@ -12,7 +12,10 @@ use bevy::{
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use ui::{bounds::AsciiGlobalBounds, button::AsciiButton, node::AsciiNode, position::AsciiPosition, AsciiUi, HorizontalAlignment, VerticalAlignment};
+use ui::{
+    bounds::AsciiGlobalBounds, button::AsciiButton, node::AsciiNode, position::AsciiPosition,
+    AsciiUi, HorizontalAlignment, VerticalAlignment,
+};
 
 fn main() {
     App::new()
@@ -44,7 +47,7 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
     //     .ascii_ui(camera)
     //     .aligned(40, 45, HorizontalAlignment::Left, VerticalAlignment::Center, Div)
     //     .aligned(20, 15, HorizontalAlignment::Center, VerticalAlignment::Center,  AsciiButton::from_string("Test"));
-    
+
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             shadows_enabled: true,
@@ -62,20 +65,23 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
         .into(),
         ..default()
     });
-    
-    let ui = commands.spawn((
-        // AsciiPosition::relavtive(3, 3, 6, 6),
-        AsciiGlobalBounds::new(10, 10, 20, 15),
-        AsciiButton::from_string("Test"),
-    )).with_children(|entity| {
-        entity.spawn((
-            AsciiPosition::align(6, 6, HorizontalAlignment::Center, VerticalAlignment::Center),
-            AsciiGlobalBounds::default(),
-            AsciiNode::default(),
+
+    let ui = commands
+        .spawn((
+            // AsciiPosition::relavtive(3, 3, 6, 6),
+            AsciiGlobalBounds::new(10, 10, 20, 15),
             AsciiButton::from_string("Test"),
-        ));
-    }).id();
-    
+        ))
+        .with_children(|entity| {
+            entity.spawn((
+                AsciiPosition::align(6, 6, HorizontalAlignment::Center, VerticalAlignment::Center),
+                AsciiGlobalBounds::default(),
+                AsciiNode::default(),
+                AsciiButton::from_string("Test"),
+            ));
+        })
+        .id();
+
     // commands.entity(camera).add_child(ui);
 
     // commands.spawn(PointLightBundle {
@@ -92,5 +98,5 @@ pub fn init(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(SceneBundle {
         scene: asset_server.load("Skull.glb#Scene0"),
         ..default()
-    }); 
+    });
 }
