@@ -36,7 +36,7 @@ impl AsciiButton {
 impl AsciiComponent for AsciiButton {
     type UpdateQuery<'w, 's> = (
         Query<'w, 's, &'static AsciiCursor, With<PrimaryWindow>>,
-        Res<'w, Input<MouseButton>>,
+        Res<'w, ButtonInput<MouseButton>>,
         EventWriter<'w, AsciiComponentHoverEnteredEvent>,
         EventWriter<'w, AsciiComponentHoverExitedEvent>,
         EventWriter<'w, AsciiComponentButtonClicked>,

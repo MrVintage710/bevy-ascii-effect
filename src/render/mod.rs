@@ -3,21 +3,13 @@ mod dither;
 mod pixel;
 
 use bevy::{
-    app::Plugin,
-    core_pipeline::core_3d,
-    prelude::*,
-    render::{
-        render_graph::{RenderGraphApp, ViewNode, ViewNodeRunner},
-        render_resource::{
+    app::Plugin, asset::load_internal_asset, core_pipeline::core_3d::{self, graph::{Core3d, Node3d}}, prelude::*, render::{
+        render_asset::RenderAssetUsages, render_graph::{RenderGraphApp, RenderLabel, ViewNode, ViewNodeRunner}, render_resource::{
             BindGroupEntries, Extent3d, ImageDataLayout, Operations, PipelineCache, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
             TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
             TextureView, TextureViewDescriptor,
-        },
-        renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::BevyDefault,
-        view::{ExtractedWindows, PostProcessWrite, RenderLayers, ViewTarget},
-        Extract, Render, RenderApp, RenderSet,
-    },
+        }, renderer::{RenderContext, RenderDevice, RenderQueue}, texture::{BevyDefault, CompressedImageFormats, ImageFormat, ImageSampler, ImageType}, view::{ExtractedWindows, PostProcessWrite, RenderLayers, ViewTarget}, Extract, Render, RenderApp, RenderSet
+    }
 };
 
 
@@ -38,14 +30,45 @@ use self::{
 //             Ascii Shader Node
 //=============================================================================
 
+pub const PIXEL_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(11079857277321826659);
+pub const ASCII_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(11079037277321826659);
+pub const ASCII_FONT_HANDLE: Handle<Image> = Handle::weak_from_u128(11068737277321826659);
+
 pub(crate) struct AsciiRendererPlugin;
 
 impl Plugin for AsciiRendererPlugin {
     fn build(&self, app: &mut App) {
+        
+        load_internal_asset!(
+            app,
+            ASCII_SHADER_HANDLE,
+            "ascii.wgsl",
+            Shader::from_wgsl
+        );
+        
+        load_internal_asset!(
+            app,
+            PIXEL_SHADER_HANDLE,
+            "pixel.wgsl",
+            Shader::from_wgsl
+        );
+        
+        let mut assets = app.world.resource_mut::<Assets<Image>>();
+        let image = Image::from_buffer(
+            include_bytes!("font.png"),
+            ImageType::Format(ImageFormat::Png),
+            CompressedImageFormats::default(),
+            true,
+            ImageSampler::nearest(),
+            RenderAssetUsages::RENDER_WORLD
+        ).expect("Should load raindrops successfully");
+        assets.insert(ASCII_FONT_HANDLE, image);
+        
         // We need to get the render app from the main app
         let Ok(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
+        
 
         render_app
             .add_systems(
@@ -54,16 +77,16 @@ impl Plugin for AsciiRendererPlugin {
             )
             .add_systems(ExtractSchedule, (extract_camera, apply_deferred))
             .add_render_graph_node::<ViewNodeRunner<AsciiShaderNode>>(
-                core_3d::graph::NAME,
-                AsciiShaderNode::NAME,
+                Core3d,
+                AsciiShaderNodeId,
             )
             .add_render_graph_edges(
-                core_3d::graph::NAME,
-                &[
-                    core_3d::graph::node::TONEMAPPING,
-                    AsciiShaderNode::NAME,
-                    core_3d::graph::node::END_MAIN_PASS_POST_PROCESSING,
-                ],
+                Core3d,
+                (
+                    Node3d::Tonemapping,
+                    AsciiShaderNodeId,
+                    Node3d::EndMainPassPostProcessing,
+                ),
             );
     }
 
@@ -83,11 +106,14 @@ impl Plugin for AsciiRendererPlugin {
 //             Ascii Shader Node
 //=============================================================================
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+pub struct AsciiShaderNodeId;
+
 #[derive(Default)]
 pub struct AsciiShaderNode;
-impl AsciiShaderNode {
-    const NAME: &'static str = "AsciiShaderNode";
-}
+// impl AsciiShaderNode {
+//     const NAME: &'static str = "AsciiShaderNode";
+// }
 
 impl ViewNode for AsciiShaderNode {
     type ViewQuery = (Entity, &'static ViewTarget, &'static AsciiCamera);
@@ -202,6 +228,8 @@ impl ViewNode for AsciiShaderNode {
                 ops: Operations::default(),
             })],
             depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
 
         // This is mostly just wgpu boilerplate for drawing a fullscreen triangle,
@@ -237,6 +265,8 @@ fn pixel_pass(
             ops: Operations::default(),
         })],
         depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
     });
 
     pixel_render_pass.set_render_pipeline(pixel_pipeline);

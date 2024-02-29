@@ -1,5 +1,5 @@
 use bevy::{
-    asset::AssetServer,
+    asset::{load_internal_asset, AssetServer},
     core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
     ecs::world::FromWorld,
     prelude::*,
@@ -37,8 +37,9 @@ impl FromWorld for PixelShaderPipeline {
         let sampler = render_device.create_sampler(&SamplerDescriptor::default());
 
         //We need to create the bind group
-        let layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
+        let layout = render_device.create_bind_group_layout(
+            "downsize_shader_bind_group_layout",
+            &[
                 //This is the screen texture
                 BindGroupLayoutEntry {
                     binding: 0,
@@ -57,10 +58,7 @@ impl FromWorld for PixelShaderPipeline {
                     count: None,
                 },
             ],
-            label: Some("downsize_shader_bind_group_layout"),
-        });
-
-        let shader = world.resource::<AssetServer>().load("pixel.wgsl");
+        );
 
         let pipeline_id = world
             .resource_mut::<PipelineCache>()
@@ -71,7 +69,7 @@ impl FromWorld for PixelShaderPipeline {
                 // This will setup a fullscreen triangle for the vertex state
                 vertex: fullscreen_shader_vertex_state(),
                 fragment: Some(FragmentState {
-                    shader,
+                    shader: super::PIXEL_SHADER_HANDLE,
                     shader_defs: vec![],
                     // Make sure this matches the entry point of your shader.
                     // It can be anything as long as it matches here and in the shader.

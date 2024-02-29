@@ -25,7 +25,6 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let screen_pos = vec2<u32>(floor(output_dims * in.uv));
     
     let overlay_info = textureLoad(overlay_texture, screen_pos, 0);
-    
         
     let screen_color = textureSampleLevel(screen_texture, texture_sampler, in.uv, 0.0);
 

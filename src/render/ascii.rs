@@ -8,19 +8,16 @@ use bevy::{
     ecs::world::FromWorld,
     prelude::*,
     render::{
-        self,
-        render_resource::{
+        self, render_asset::RenderAssetUsages, render_resource::{
             BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
             CachedRenderPipelineId, ColorTargetState, ColorWrites, Extent3d, FragmentState,
             ImageCopyTexture, ImageDataLayout, MultisampleState, Origin3d, PipelineCache,
             PrimitiveState, RenderPipelineDescriptor, Sampler, SamplerBindingType,
             SamplerDescriptor, ShaderStages, ShaderType, Texture, TextureAspect, TextureFormat,
             TextureSampleType, TextureView, TextureViewDescriptor, TextureViewDimension,
-        },
-        renderer::{RenderDevice, RenderQueue},
-        texture::{
+        }, renderer::{RenderDevice, RenderQueue}, texture::{
             BevyDefault, CompressedImageFormats, Image, ImageFormat, ImageSampler, ImageType,
-        },
+        }
     },
     utils::hashbrown::HashMap,
 };
@@ -46,8 +43,9 @@ impl FromWorld for AsciiShaderPipeline {
         let render_device = world.resource::<RenderDevice>();
 
         //We need to create the bind group
-        let layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
+        let layout = render_device.create_bind_group_layout(
+            "AsciiShaderPipeline BindGroupLayout",    
+            &[
                 //This is the screen texture
                 BindGroupLayoutEntry {
                     binding: 0,
@@ -106,19 +104,17 @@ impl FromWorld for AsciiShaderPipeline {
                     count: None,
                 },
             ],
-            label: Some("AsciiShaderPipeline::bind_group_layout"),
-        });
+        );
 
         let sampler = render_device.create_sampler(&SamplerDescriptor::default());
 
-        let shader = world.resource::<AssetServer>().load("ascii.wgsl");
-
         let font_texture = Image::from_buffer(
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/", "font.png")),
+            include_bytes!("font.png"),
             ImageType::Format(ImageFormat::Png),
             CompressedImageFormats::default(),
             true,
             ImageSampler::nearest(),
+            RenderAssetUsages::RENDER_WORLD
         )
         .expect("There was an error reading an internal texture.");
 
@@ -157,7 +153,7 @@ impl FromWorld for AsciiShaderPipeline {
                 // This will setup a fullscreen triangle for the vertex state
                 vertex: fullscreen_shader_vertex_state(),
                 fragment: Some(FragmentState {
-                    shader,
+                    shader : super::ASCII_SHADER_HANDLE,
                     shader_defs: vec![],
                     // Make sure this matches the entry point of your shader.
                     // It can be anything as long as it matches here and in the shader.
