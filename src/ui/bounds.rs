@@ -2,7 +2,7 @@ use bevy::{prelude::*, utils::HashMap};
 
 use crate::ascii::AsciiCamera;
 
-use super::{position::AsciiPosition, HorizontalAlignment, VerticalAlignment};
+use super::{position::AsciiPosition, util::Value, HorizontalAlignment, VerticalAlignment};
 
 //=============================================================================
 //             Plugin and Systems
@@ -86,8 +86,8 @@ impl AsciiBounds {
 
     pub fn aligned(
         &self,
-        width: u32,
-        height: u32,
+        width: impl Into<Value>,
+        height: impl Into<Value>,
         horizontal_alignment: HorizontalAlignment,
         vertical_alignment: VerticalAlignment,
     ) -> AsciiBounds {

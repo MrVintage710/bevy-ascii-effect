@@ -3,7 +3,7 @@ use bevy::{prelude::*, utils::HashSet};
 use crate::ascii::AsciiCamera;
 
 use super::{
-    bounds::{AsciiBounds, AsciiGlobalBounds}, AsciiMarkDirtyEvent, HorizontalAlignment, Padding, VerticalAlignment
+    bounds::{AsciiBounds, AsciiGlobalBounds}, util::Value, AsciiMarkDirtyEvent, HorizontalAlignment, Padding, VerticalAlignment
 };
 
 //=============================================================================
@@ -168,8 +168,8 @@ fn get_global_bounds(
 #[derive(Component, Reflect)]
 pub enum AsciiPosition {
     Aligned {
-        width: u32,
-        height: u32,
+        width: Value,
+        height: Value,
         horizontal: HorizontalAlignment,
         vertical: VerticalAlignment,
     },
@@ -185,7 +185,11 @@ pub enum AsciiPosition {
         slice: u32,
     },
     Relative {
-        bounds: AsciiBounds,
+        x : i32,
+        y : i32,
+        width: Value,
+        height: Value,
+        layer : u32,
     },
     Absolute {
         bounds: AsciiBounds,
@@ -193,21 +197,25 @@ pub enum AsciiPosition {
 }
 
 impl AsciiPosition {
-    pub fn relavtive(x: i32, y: i32, width: u32, height: u32, layer : u32) -> Self {
+    pub fn relavtive(x: i32, y: i32, width: impl Into<Value>, height: impl Into<Value>, layer : u32) -> Self {
         AsciiPosition::Relative {
-            bounds: AsciiBounds::new(x, y, width, height, layer),
+            x,
+            y,
+            width: width.into(),
+            height: height.into(),
+            layer,
         }
     }
 
     pub fn align(
-        width: u32,
-        height: u32,
+        width: impl Into<Value>,
+        height: impl Into<Value>,
         horizontal: HorizontalAlignment,
         vertical: VerticalAlignment,
     ) -> Self {
         AsciiPosition::Aligned {
-            width,
-            height,
+            width : width.into(),
+            height : height.into(),
             horizontal,
             vertical,
         }
@@ -243,8 +251,8 @@ impl AsciiPosition {
             } => {
                 // Self::create_bounds_horizontal_slice(*total_silces, *slice, parent_bounds)
             }
-            AsciiPosition::Relative { bounds } => {
-                Self::format_bounds_relative(bounds, parent_bounds, child_bounds)
+            AsciiPosition::Relative { x, y, width, height, layer } => {
+                Self::format_bounds_relative(*x, *y, *width, *height, *layer, parent_bounds, child_bounds)
             }
             AsciiPosition::Absolute { bounds } => todo!(),
         }
@@ -275,8 +283,8 @@ impl AsciiPosition {
             } => {
                 todo!()
             }
-            AsciiPosition::Relative { bounds } => {
-                Self::create_bounds_relative(bounds, parent_bounds)
+            AsciiPosition::Relative { x, y, width, height, layer  } => {
+                Self::create_bounds_relative(*x, *y, *width, *height, *layer, parent_bounds)
             }
             AsciiPosition::Absolute { bounds } => {
                 todo!()
@@ -285,8 +293,8 @@ impl AsciiPosition {
     }
 
     pub fn create_bounds_aligned(
-        width: u32,
-        height: u32,
+        width: impl Into<Value>,
+        height: impl Into<Value>,
         horizontal_alignment: HorizontalAlignment,
         vertical_alignment: VerticalAlignment,
         parent_bounds: &AsciiBounds,
@@ -304,13 +312,16 @@ impl AsciiPosition {
     }
 
     pub fn format_bounds_aligned(
-        width: u32,
-        height: u32,
+        width: impl Into<Value>,
+        height: impl Into<Value>,
         horizontal_alignment: HorizontalAlignment,
         vertical_alignment: VerticalAlignment,
         parent_bounds: &AsciiBounds,
         child_bounds: &mut AsciiBounds,
     ) {
+        let width = width.into().pixel_u32(parent_bounds.width);
+        let height = height.into().pixel_u32(parent_bounds.height);
+        
         let x = match horizontal_alignment {
             HorizontalAlignment::Left => 0,
             HorizontalAlignment::Center => ((parent_bounds.width as f32 / 2.0)
@@ -372,20 +383,23 @@ impl AsciiPosition {
     }
 
     fn format_bounds_relative(
-        bounds: &AsciiBounds,
+        x: i32, y : i32, width : impl Into<Value>, height : impl Into<Value>, layer : u32,
         parent_bounds: &AsciiBounds,
         child_bounds: &mut AsciiBounds,
     ) {
-        child_bounds.x = bounds.x + parent_bounds.x;
-        child_bounds.y = bounds.y + parent_bounds.y;
-        child_bounds.width = bounds.width;
-        child_bounds.height = bounds.height;
-        child_bounds.layer = bounds.layer + parent_bounds.layer + 1;
+        let width = width.into().pixel_u32(parent_bounds.width);
+        let height = height.into().pixel_u32(parent_bounds.height);
+        
+        child_bounds.x = x + parent_bounds.x;
+        child_bounds.y = y + parent_bounds.y;
+        child_bounds.width = width;
+        child_bounds.height = height;
+        child_bounds.layer = layer + parent_bounds.layer + 1;
     }
 
-    fn create_bounds_relative(bounds: &AsciiBounds, parent_bounds: &AsciiBounds) -> AsciiBounds {
+    fn create_bounds_relative(x: i32, y : i32, width : impl Into<Value>, height : impl Into<Value>, layer : u32, parent_bounds: &AsciiBounds) -> AsciiBounds {
         let mut child = AsciiBounds::default();
-        Self::format_bounds_relative(bounds, parent_bounds, &mut child);
+        Self::format_bounds_relative(x, y, width, height, layer, parent_bounds, &mut child);
         child
     }
 }

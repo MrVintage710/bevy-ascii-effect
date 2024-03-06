@@ -94,7 +94,29 @@ pub struct AsciiComponentButtonClicked(pub Entity);
 //            Ui Events
 //=============================================================================
 
+#[derive(Debug, Clone, PartialEq, Copy, Reflect)]
 pub enum Value {
-    Px(f32),
+    Px(i32),
     Percent(f32),
+}
+
+impl Value {
+    pub fn pixel_u32(&self, parent_dim : u32) -> u32 {
+        match self {
+            Value::Px(v) => *v as u32,
+            Value::Percent(v) => (parent_dim as f32 * v) as u32,
+        }
+    }
+}
+
+impl From<f32> for Value {
+    fn from(v: f32) -> Self {
+        Value::Percent(v)
+    }
+}
+
+impl From<i32> for Value {
+    fn from(v: i32) -> Self {
+        Value::Px(v)
+    }
 }
