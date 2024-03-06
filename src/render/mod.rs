@@ -303,7 +303,6 @@ pub(crate) fn extract_camera(
 
             if let Some(ascii_ui) = ascii_ui {
                 if ascii_ui.is_dirty() || !*is_initialized {
-                    println!("Render UI");
                     *last_surface = AsciiSurface::new(
                         pixel_camera.target_res().x as u32,
                         pixel_camera.target_res().y as u32,

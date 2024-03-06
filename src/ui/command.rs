@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
-use super::{bounds::{AsciiBounds, AsciiGlobalBounds}, component::AsciiComponent, position::AsciiPosition, util::Value, HorizontalAlignment, VerticalAlignment};
+use super::{bounds::{AsciiBounds, AsciiNode}, component::AsciiComponent, position::AsciiPosition, util::Value, HorizontalAlignment, VerticalAlignment};
 
 pub trait AsciiUiCommandExtention<'w, 's> {
     fn ascii_ui_with_parent<'c>(&'c mut self, parent: Entity) -> AsciiUiCommands<'c, 'w, 's>;
@@ -40,8 +40,9 @@ impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
         let parent = self.current_entity.clone();
         let entity = self.commands.spawn((
            AsciiPosition::Relative { x, y, width : width.into(), height : height.into(), layer : self.entity_stack.len() as u32 },
-           AsciiGlobalBounds::default(),
-           component
+           AsciiNode::default(),
+           component,
+           VisibilityBundle::default()
         )).id();
         self.commands.entity(parent).add_child(entity.clone());
         self.entity_stack.push_back(entity);
@@ -53,8 +54,9 @@ impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
         let parent = self.current_entity.clone();
         let entity = self.commands.spawn((
            AsciiPosition::Aligned { width : width.into(), height : height.into(), horizontal: ha, vertical: va },
-           AsciiGlobalBounds::default(),
-           component
+           AsciiNode::default(),
+           component,
+           VisibilityBundle::default()
         )).id();
         self.commands.entity(parent).add_child(entity.clone());
         self.entity_stack.push_back(entity);

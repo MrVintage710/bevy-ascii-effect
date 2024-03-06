@@ -3,7 +3,7 @@ use bevy::{prelude::*, utils::HashSet};
 use crate::ascii::AsciiCamera;
 
 use super::{
-    bounds::{AsciiBounds, AsciiGlobalBounds}, util::Value, AsciiMarkDirtyEvent, HorizontalAlignment, Padding, VerticalAlignment
+    bounds::{AsciiBounds, AsciiNode}, util::Value, AsciiMarkDirtyEvent, HorizontalAlignment, Padding, VerticalAlignment
 };
 
 //=============================================================================
@@ -26,8 +26,9 @@ impl Plugin for AsciiPositionPlugin {
 fn mark_positions_dirty(
     mut changed_bounds: Query<(
         Entity,
-        &mut AsciiGlobalBounds,
+        &mut AsciiNode,
         Ref<AsciiPosition>,
+        Option<Ref<InheritedVisibility>>,
         Option<&Children>,
     )>,
     mut ui_rerender_event : EventWriter<AsciiMarkDirtyEvent>,
@@ -35,7 +36,8 @@ fn mark_positions_dirty(
     let entities = changed_bounds
         .iter()
         .filter_map(|value| {
-            if value.2.is_changed() {
+            let v = value.3.map(|value| value.is_changed()).unwrap_or(false);
+            if value.2.is_changed() || v  {
                 Some(value.0)
             } else {
                 None
@@ -58,9 +60,10 @@ fn mark_positions_dirty(
         ui_rerender_event.send(AsciiMarkDirtyEvent);
     }
     
-    for (entity, mut global_bounds, _, _) in changed_bounds.iter_mut() {
-        if dirty.contains(&entity) || global_bounds.is_changed() {
+    for (entity, mut global_bounds, _, vis, _) in changed_bounds.iter_mut() {
+        if dirty.contains(&entity) || global_bounds.changed() {
             global_bounds.is_dirty = true;
+            global_bounds.clear_changed();
         }
     }
 }
@@ -70,12 +73,13 @@ fn get_children(
     children_collection: &mut Vec<Entity>,
     query: &Query<(
         Entity,
-        &mut AsciiGlobalBounds,
+        &mut AsciiNode,
         Ref<AsciiPosition>,
+        Option<Ref<InheritedVisibility>>,
         Option<&Children>,
     )>,
 ) {
-    let Ok((_, global_bounds, _, children)) = query.get(current) else {
+    let Ok((_, _, _, _, children)) = query.get(current) else {
         return;
     };
 
@@ -94,7 +98,7 @@ fn get_children(
 fn update_positions(
     mut bounded_entities: Query<(
         Entity,
-        &mut AsciiGlobalBounds,
+        &mut AsciiNode,
         Option<&AsciiPosition>,
         Option<&Parent>,
     )>,
@@ -115,15 +119,12 @@ fn update_positions(
 
     for entity in entities_to_update {
         let new_global_bounds = get_global_bounds(entity, &bounded_entities, &acsii_cam_query);
-        if let Ok((_, mut global_bounds, local_bounds, _)) = bounded_entities.get_mut(entity) {
+        if let Ok((_, mut global_bounds, _, _)) = bounded_entities.get_mut(entity) {
             if let Some(new_global_bounds) = new_global_bounds {
                 if new_global_bounds != global_bounds.bounds {
-                    global_bounds.bounds = new_global_bounds
+                    global_bounds.bounds = new_global_bounds;
                 }
             }
-            // else {
-            //     global_bounds.bounds = local_bounds.clone();
-            // }
         }
     }
 }
@@ -132,19 +133,19 @@ fn get_global_bounds(
     current: Entity,
     global_bounds_query: &Query<(
         Entity,
-        &mut AsciiGlobalBounds,
+        &mut AsciiNode,
         Option<&AsciiPosition>,
         Option<&Parent>,
     )>,
     acsii_cam_query: &Query<&AsciiCamera>,
 ) -> Option<AsciiBounds> {
-    if let Ok(cam) = acsii_cam_query.get(current) {
-        let dims = cam.target_res();
+    if let Ok(ascii_cam) = acsii_cam_query.get(current) {
+        let dims = ascii_cam.target_res();
         return Some(AsciiBounds::from_dims(dims.x as u32, dims.y as u32));
     }
 
     let Ok((_, global_bounds, local_position, parent)) = global_bounds_query.get(current) else {
-        return None;
+        return None
     };
 
     if let Some(parent) = parent {

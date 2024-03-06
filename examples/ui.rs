@@ -65,7 +65,9 @@ fn init(
     )).id();
     
     commands.ascii_ui_with_parent(camera)
-        .aligned(20, 20, HorizontalAlignment::Center, VerticalAlignment::Center, AsciiButton::from_string("Test Button"));
+        .aligned(20, 20, HorizontalAlignment::Center, VerticalAlignment::Center, AsciiButton::from_string("Test Button"))
+        .aligned(8, 6, HorizontalAlignment::Center, VerticalAlignment::Center, AsciiButton::from_string("Test Button"))
+    ;
     
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,

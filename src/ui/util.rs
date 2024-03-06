@@ -1,4 +1,6 @@
 
+use std::ops::{Deref, DerefMut};
+
 use bevy::{prelude::*, render::camera::RenderTarget, window::PrimaryWindow};
 
 use crate::ascii::AsciiCamera;
@@ -118,5 +120,59 @@ impl From<f32> for Value {
 impl From<i32> for Value {
     fn from(v: i32) -> Self {
         Value::Px(v)
+    }
+}
+
+//=============================================================================
+//            Ui Value Change Detection
+//=============================================================================
+
+#[derive(Reflect, Debug, Clone, Copy)]
+pub struct Variable<T> {
+    value : T,
+    changed : bool,
+}
+
+impl <T> Variable<T> {
+    pub fn new(value : T) -> Self {
+        Self {
+            value,
+            changed : false,
+        }
+    }
+
+    pub fn changed(&self) -> bool {
+        self.changed
+    }
+    
+    pub fn reset(&mut self) {
+        self.changed = false;
+    }
+}
+
+impl <T> Default for Variable<T> where T : Default {
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
+
+impl <T> From<T> for Variable<T> {
+    fn from(value : T) -> Self {
+        Self::new(value)
+    }
+}
+
+impl <T> Deref for Variable<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl <T> DerefMut for Variable<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.changed = true;
+        &mut self.value
     }
 }

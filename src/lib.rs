@@ -4,7 +4,7 @@ mod ascii;
 
 pub mod prelude {
     pub use crate::ascii::*;
-    pub use crate::ui::bounds::AsciiGlobalBounds;
+    pub use crate::ui::bounds::AsciiNode;
     pub use crate::ui::component::button::AsciiButton;
     pub use crate::ui::position::AsciiPosition;
     pub use crate::ui::HorizontalAlignment;

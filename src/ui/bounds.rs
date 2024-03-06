@@ -1,8 +1,10 @@
+use std::ops::{Deref, DerefMut};
+
 use bevy::{prelude::*, utils::HashMap};
 
 use crate::ascii::AsciiCamera;
 
-use super::{position::AsciiPosition, util::Value, HorizontalAlignment, VerticalAlignment};
+use super::{position::AsciiPosition, util::{Value, Variable}, HorizontalAlignment, VerticalAlignment};
 
 //=============================================================================
 //             Plugin and Systems
@@ -14,7 +16,7 @@ impl Plugin for AsciiBoundsPlugin {
     fn build(&self, app: &mut App) {
         app
             .register_type::<AsciiBounds>()
-            .register_type::<AsciiGlobalBounds>()
+            .register_type::<AsciiNode>()
         ;
     }
 }
@@ -106,22 +108,31 @@ impl AsciiBounds {
 //=============================================================================
 
 #[derive(Clone, Default, Debug, Reflect, Component)]
-pub struct AsciiGlobalBounds {
+pub struct AsciiNode {
     pub bounds: AsciiBounds,
     pub is_dirty: bool,
-    pub clip_bounds: bool,
+    pub clip_bounds: Variable<bool>,
 }
 
-impl AsciiGlobalBounds {
-    pub fn new(x: i32, y: i32, width: u32, height: u32, layer : u32) -> AsciiGlobalBounds {
-        AsciiGlobalBounds {
+impl AsciiNode {
+    pub fn new(x: i32, y: i32, width: u32, height: u32, layer : u32) -> AsciiNode {
+        AsciiNode {
             bounds: AsciiBounds::new(x, y, width, height, layer),
             is_dirty: false,
-            clip_bounds: false,
+            clip_bounds: false.into(),
         }
     }
 
-    pub fn set_from(&mut self, bounds: &AsciiBounds) {
+    pub fn set_bounds_from(&mut self, bounds: &AsciiBounds) {
         self.bounds = bounds.clone();
+        self.is_dirty = true;
+    }
+    
+    pub fn changed(&self) -> bool {
+        self.clip_bounds.changed()
+    }
+    
+    pub fn clear_changed(&mut self) {
+        self.clip_bounds.reset();
     }
 }

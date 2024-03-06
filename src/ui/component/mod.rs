@@ -7,7 +7,7 @@ use bevy::{
         system::{StaticSystemParam, SystemParam}
     ,
     prelude::*,
-    render::{view::RenderLayers, Extract, RenderApp},
+    render::{view::{visibility, RenderLayers}, Extract, RenderApp},
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 use self::button::AsciiButton;
 
 use super::{
-    bounds::{AsciiBounds, AsciiGlobalBounds},
+    bounds::{AsciiBounds, AsciiNode},
     buffer::AsciiBuffer, AsciiMarkDirtyEvent,
 };
 
@@ -71,20 +71,29 @@ impl<AC: AsciiComponent> Plugin for AsciiComponentPlugin<AC> {
 //=============================================================================
 
 fn update_components<C: AsciiComponent>(
-    mut nodes: Query<(Entity, &mut C, &AsciiGlobalBounds)>,
+    mut nodes: Query<(Entity, &mut C, &AsciiNode, Option<&InheritedVisibility>)>,
     mut query: StaticSystemParam<C::UpdateQuery<'_, '_>>,
 ) {
-    for (entity, mut component, global_bounds) in nodes.iter_mut() {
+    for (entity, mut component, global_bounds, visibility) in nodes.iter_mut() {
+        let is_visible = visibility.map(|v| v.get()).unwrap_or(true);
+        if !is_visible {
+            continue;
+        }
         component.update(&mut (*query), &global_bounds.bounds, entity);
     }
 }
 
 pub fn extract_ascii_ui<C: AsciiComponent>(
     ascii_cameras: Query<(&OverlayBuffer, Option<&RenderLayers>), With<AsciiCamera>>,
-    ui_elements: Extract<Query<(&AsciiGlobalBounds, &C, Option<&RenderLayers>)>>,
+    ui_elements: Extract<Query<(&AsciiNode, &C, Option<&RenderLayers>, Option<&InheritedVisibility>)>>,
 ) {    
     for (buffer, camera_render_layers) in ascii_cameras.iter() {
-        for (global_bounds, component, component_render_layer) in ui_elements.iter() {
+        for (global_bounds, component, component_render_layer, visibility) in ui_elements.iter() {
+            if let Some(visibility) = visibility {
+                if !visibility.get() {
+                    continue;
+                }
+            }
             match (component_render_layer, camera_render_layers) {
                 (Some(_), None) | (None, Some(_)) => {
                     continue;
@@ -98,7 +107,7 @@ pub fn extract_ascii_ui<C: AsciiComponent>(
             }
 
             let surface = &buffer.0;
-            let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds, global_bounds.clip_bounds);
+            let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds, *global_bounds.clip_bounds);
             
             component.render(&mut buffer);
         }
