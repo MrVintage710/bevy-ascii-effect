@@ -3,7 +3,7 @@ use bevy::{prelude::*, utils::HashSet};
 use crate::ascii::AsciiCamera;
 
 use super::{
-    bounds::{AsciiBounds, AsciiGlobalBounds}, AsciiRerenderUiEvent, HorizontalAlignment, Padding, VerticalAlignment
+    bounds::{AsciiBounds, AsciiGlobalBounds}, AsciiMarkDirtyEvent, HorizontalAlignment, Padding, VerticalAlignment
 };
 
 //=============================================================================
@@ -30,7 +30,7 @@ fn mark_positions_dirty(
         Ref<AsciiPosition>,
         Option<&Children>,
     )>,
-    mut ui_rerender_event : EventWriter<AsciiRerenderUiEvent>,
+    mut ui_rerender_event : EventWriter<AsciiMarkDirtyEvent>,
 ) {
     let entities = changed_bounds
         .iter()
@@ -55,7 +55,7 @@ fn mark_positions_dirty(
     }
 
     if !dirty.is_empty() {
-        ui_rerender_event.send(AsciiRerenderUiEvent);
+        ui_rerender_event.send(AsciiMarkDirtyEvent);
     }
     
     for (entity, mut global_bounds, _, _) in changed_bounds.iter_mut() {
@@ -140,7 +140,7 @@ fn get_global_bounds(
 ) -> Option<AsciiBounds> {
     if let Ok(cam) = acsii_cam_query.get(current) {
         let dims = cam.target_res();
-        return Some(AsciiBounds::from_dims(dims.x as u32, dims.x as u32));
+        return Some(AsciiBounds::from_dims(dims.x as u32, dims.y as u32));
     }
 
     let Ok((_, global_bounds, local_position, parent)) = global_bounds_query.get(current) else {
@@ -193,9 +193,9 @@ pub enum AsciiPosition {
 }
 
 impl AsciiPosition {
-    pub fn relavtive(x: i32, y: i32, width: u32, height: u32) -> Self {
+    pub fn relavtive(x: i32, y: i32, width: u32, height: u32, layer : u32) -> Self {
         AsciiPosition::Relative {
-            bounds: AsciiBounds::new(x, y, width, height),
+            bounds: AsciiBounds::new(x, y, width, height, layer),
         }
     }
 

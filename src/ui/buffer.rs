@@ -42,7 +42,7 @@ impl AsciiBuffer {
 
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
-                bounds: AsciiBounds::new(x, y, width, height),
+                bounds: AsciiBounds::new(x, y, width, height, self.bounds.layer + 1),
                 should_clip: self.should_clip
             });
         }
@@ -71,6 +71,7 @@ impl AsciiBuffer {
                 ((self.bounds.height / 2) - (height / 2)) as i32,
                 width.min(self.bounds.width),
                 height.min(self.bounds.height),
+                self.bounds.layer + 1,
             ),
             should_clip: self.should_clip
         }
@@ -91,6 +92,7 @@ impl AsciiBuffer {
                     self.bounds().y,
                     width,
                     self.bounds.height,
+                    self.bounds.layer + 1,
                 ),
                 should_clip: self.should_clip
             };
@@ -120,6 +122,7 @@ impl AsciiBuffer {
                     self.bounds.y + y,
                     self.bounds.width,
                     height,
+                    self.bounds.layer + 1,
                 ),
                 should_clip: self.should_clip
             };

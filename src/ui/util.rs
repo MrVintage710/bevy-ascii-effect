@@ -89,3 +89,12 @@ pub struct AsciiComponentHoverExitedEvent(pub Entity);
 
 #[derive(Event, Reflect, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AsciiComponentButtonClicked(pub Entity);
+
+//=============================================================================
+//            Ui Events
+//=============================================================================
+
+pub enum Value {
+    Px(f32),
+    Percent(f32),
+}

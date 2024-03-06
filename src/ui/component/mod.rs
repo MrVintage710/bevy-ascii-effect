@@ -1,3 +1,5 @@
+pub mod button;
+
 use std::marker::PhantomData;
 
 use bevy::{
@@ -13,10 +15,28 @@ use crate::{
     render::ascii::OverlayBuffer,
 };
 
+use self::button::AsciiButton;
+
 use super::{
     bounds::{AsciiBounds, AsciiGlobalBounds},
-    buffer::AsciiBuffer,
+    buffer::AsciiBuffer, AsciiMarkDirtyEvent,
 };
+
+//=============================================================================
+//             Components Plugin
+//=============================================================================
+
+pub struct AsciiDefaultComponentsPlugin;
+
+impl Plugin for AsciiDefaultComponentsPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            
+            .add_plugins(AsciiComponentPlugin::<AsciiButton>::default())
+            .register_type::<AsciiButton>()
+        ;
+    }
+}
 
 //=============================================================================
 //             Component Plugin
@@ -54,7 +74,6 @@ fn update_components<C: AsciiComponent>(
     mut nodes: Query<(Entity, &mut C, &AsciiGlobalBounds)>,
     mut query: StaticSystemParam<C::UpdateQuery<'_, '_>>,
 ) {
-    // let query = *query;
     for (entity, mut component, global_bounds) in nodes.iter_mut() {
         component.update(&mut (*query), &global_bounds.bounds, entity);
     }

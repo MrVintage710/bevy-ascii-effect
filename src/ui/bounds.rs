@@ -33,13 +33,13 @@ pub struct AsciiBounds {
 }
 
 impl AsciiBounds {
-    pub fn new(x: i32, y: i32, width: u32, height: u32) -> Self {
+    pub fn new(x: i32, y: i32, width: u32, height: u32, layer: u32) -> Self {
         AsciiBounds {
             x,
             y,
             width,
             height,
-            layer: 0,
+            layer,
         }
     }
 
@@ -113,9 +113,9 @@ pub struct AsciiGlobalBounds {
 }
 
 impl AsciiGlobalBounds {
-    pub fn new(x: i32, y: i32, width: u32, height: u32) -> AsciiGlobalBounds {
+    pub fn new(x: i32, y: i32, width: u32, height: u32, layer : u32) -> AsciiGlobalBounds {
         AsciiGlobalBounds {
-            bounds: AsciiBounds::new(x, y, width, height),
+            bounds: AsciiBounds::new(x, y, width, height, layer),
             is_dirty: false,
             clip_bounds: false,
         }

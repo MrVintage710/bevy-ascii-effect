@@ -1,17 +1,19 @@
 pub mod bounds;
 pub mod buffer;
-pub mod button;
+pub mod component;
 pub mod character;
 pub mod command;
-pub mod component;
 pub mod position;
 pub mod util;
 
 
 use self::{
-    bounds::AsciiBoundsPlugin, button::AsciiButton, character::Character,
+    bounds::AsciiBoundsPlugin, character::Character,
     component::AsciiComponentPlugin, position::AsciiPositionPlugin, util::AsciiUtils,
 };
+
+use self::component::button::AsciiButton;
+
 use bevy::prelude::*;
 
 //=============================================================================
@@ -23,15 +25,17 @@ pub struct AsciiUiPlugin;
 impl Plugin for AsciiUiPlugin {
     fn build(&self, app: &mut App) {
         app
-            .register_type::<AsciiUi>()
             .add_plugins(AsciiBoundsPlugin)
             .add_plugins(AsciiPositionPlugin)
             .add_plugins(AsciiUtils)
             .add_plugins(AsciiComponentPlugin::<AsciiButton>::default())
         
-            .add_event::<AsciiRerenderUiEvent>()
+            .add_event::<AsciiMarkDirtyEvent>()
             .add_systems(PreUpdate, clean_ui)
             .add_systems(PostUpdate, mark_ui_dirty)
+            
+            .register_type::<AsciiUi>()
+            .register_type::<AsciiButton>()
         ;
     }
 }
@@ -57,17 +61,19 @@ impl AsciiUi {
 //=============================================================================
 
 #[derive(Event, Debug, Clone, Reflect, PartialEq, Eq)]
-pub struct AsciiRerenderUiEvent;
+pub struct AsciiMarkDirtyEvent;
 
 fn mark_ui_dirty(
     mut ui: Query<&mut AsciiUi>,
-    mut events : EventReader<AsciiRerenderUiEvent>
+    mut events : EventReader<AsciiMarkDirtyEvent>
 ) {
     if !events.is_empty() {
         for mut ui in ui.iter_mut() {
             ui.is_dirty = true;
         }
     }
+    
+    events.clear();
 }
 
 fn clean_ui( 

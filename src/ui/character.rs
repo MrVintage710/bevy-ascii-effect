@@ -2,6 +2,8 @@
 //             Ascii Character
 //=============================================================================
 
+use bevy::reflect::Reflect;
+
 #[derive(Clone, Copy)]
 pub enum AsciiCharacter {
     Set {
@@ -311,7 +313,7 @@ impl From<char> for Character {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect, Debug)]
 pub enum Color {
     Black,
     White,
