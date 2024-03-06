@@ -62,6 +62,7 @@ fn init(
         AsciiCamera::default(),
         AsciiUi::default(),
         PanOrbitCamera::default(),
+        VisibilityBundle::default(),
     )).id();
     
     commands.ascii_ui_with_parent(camera)
