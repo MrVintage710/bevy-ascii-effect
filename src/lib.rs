@@ -15,6 +15,7 @@ pub mod prelude {
     pub use crate::ui::component::AsciiComponent;
     pub use crate::ui::bounds::AsciiBounds;
     pub use crate::ui::util::Variable;
-    pub use crate::ui::buffer::*;
-    
+    pub use crate::ui::buffer::AsciiBuffer;
+    pub use crate::ui::buffer::AsciiBoxDrawer;
+    pub use crate::ui::buffer::AsciiTextDrawer;
 }
