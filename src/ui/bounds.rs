@@ -10,7 +10,7 @@ use super::{position::AsciiPosition, util::{Value, Variable}, HorizontalAlignmen
 //             Plugin and Systems
 //=============================================================================
 
-pub struct AsciiBoundsPlugin;
+pub(crate) struct AsciiBoundsPlugin;
 
 impl Plugin for AsciiBoundsPlugin {
     fn build(&self, app: &mut App) {

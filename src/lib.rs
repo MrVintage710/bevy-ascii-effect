@@ -13,4 +13,5 @@ pub mod prelude {
     pub use crate::ui::AsciiUi;
     pub use crate::ui::util::Value;
     pub use crate::ui::component::AsciiComponent;
+    pub use crate::ui::bounds::*;
 }
