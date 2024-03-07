@@ -28,11 +28,12 @@ impl AsciiBuffer {
     }
 
     pub fn set_character(&self, x: i32, y: i32, character: impl Into<AsciiCharacter>) {
-        if self.bounds.is_within_local(x, y) {
-            let character = character.into().with_layer(self.bounds.layer);
-            self.surface
-                .set_character(self.bounds.x + x, self.bounds.y + y, character);
-        }
+        if self.should_clip && !self.bounds.is_within_local(x, y) { return }
+        
+        let character = character.into().with_layer(self.bounds.layer);
+        self.surface
+            .set_character(self.bounds.x + x, self.bounds.y + y, character);
+            
     }
 
     pub fn sub_buffer(&self, x: i32, y: i32, width: u32, height: u32) -> Option<AsciiBuffer> {
