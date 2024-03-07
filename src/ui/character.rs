@@ -307,7 +307,8 @@ impl From<char> for Character {
             '=' => Character::Equal,
             '>' => Character::GreaterThan,
             '?' => Character::QuestionMark,
-            _ => Character::Nil,
+            '_' => Character::BorderS,
+            _ => Character::QuestionMark,
         }
     }
 }
