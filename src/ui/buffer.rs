@@ -2,9 +2,7 @@ use bevy::{ecs::component::Component, reflect::Reflect};
 use std::sync::{Arc, Mutex};
 
 use super::{
-    bounds::AsciiBounds,
-    character::{AsciiCharacter, Color},
-    BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment,
+    bounds::AsciiBounds, character::{AsciiCharacter, Color}, position::AsciiPosition, util::Value, BorderType, Character, HorizontalAlignment, Padding, TextOverflow, VerticalAlignment
 };
 
 //=============================================================================
@@ -64,16 +62,12 @@ impl AsciiBuffer {
         }
     }
 
-    pub fn center(&self, width: u32, height: u32) -> AsciiBuffer {
+    pub fn center(&self, width: impl Into<Value>, height: impl Into<Value>) -> AsciiBuffer {
+        let mut child_bounds = AsciiBounds::default();
+        AsciiPosition::format_bounds_aligned(width, height, HorizontalAlignment::Center, VerticalAlignment::Center, self.bounds(), &mut child_bounds);
         AsciiBuffer {
             surface: self.surface.clone(),
-            bounds: AsciiBounds::new(
-                ((self.bounds.width / 2) - (width / 2)) as i32,
-                ((self.bounds.height / 2) - (height / 2)) as i32,
-                width.min(self.bounds.width),
-                height.min(self.bounds.height),
-                self.bounds.layer + 1,
-            ),
+            bounds: child_bounds,
             should_clip: self.should_clip
         }
     }
