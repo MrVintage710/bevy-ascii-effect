@@ -64,6 +64,11 @@ impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
         self
     }
     
+    pub fn hidden(&mut self) -> &mut Self {
+        self.commands.entity(self.current_entity).insert(Visibility::Hidden);
+        self
+    }
+    
     pub fn named(&mut self, name : &str) -> &mut Self {
         self.commands.entity(self.current_entity).insert(Name::new(name.to_string()));
         self

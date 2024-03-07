@@ -19,4 +19,5 @@ pub mod prelude {
     pub use crate::ui::buffer::AsciiBoxDrawer;
     pub use crate::ui::buffer::AsciiTextDrawer;
     pub use crate::ui::component::AsciiComponentPlugin;
+    pub use crate::ui::AsciiMarkDirtyEvent;
 }
