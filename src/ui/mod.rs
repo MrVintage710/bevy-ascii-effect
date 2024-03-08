@@ -97,28 +97,93 @@ pub enum BorderType {
 
 impl BorderType {
     fn get_character(&self, x: u32, y: u32, width: u32, height: u32) -> Character {
+        if x == 0 && y == 0 {
+            self.top_left()
+        } else if x == width - 1 && y == 0 {
+            self.top_right()
+        } else if x == 0 && y == height - 1 {
+            self.bottom_left()
+        } else if x == width - 1 && y == height - 1 {
+            self.bottom_right()
+        } else if x == 0 {
+            self.left()
+        } else if x == width - 1 {
+            self.right()
+        } else if y == 0 {
+            self.top()
+        } else if y == height - 1 {
+            self.bottom()
+        } else {
+            Character::Nil
+        }
+    }
+    
+    pub fn top(&self) -> Character {
         match self {
-            BorderType::Full => {
-                if x == 0 && y == 0 {
-                    Character::LBorderNW
-                } else if x == width - 1 && y == 0 {
-                    Character::LBorderNE
-                } else if x == 0 && y == height - 1 {
-                    Character::LBorderSW
-                } else if x == width - 1 && y == height - 1 {
-                    Character::LBorderSE
-                } else if x == 0 {
-                    Character::BorderW
-                } else if x == width - 1 {
-                    Character::BorderE
-                } else if y == 0 {
-                    Character::BorderN
-                } else if y == height - 1 {
-                    Character::BorderS
-                } else {
-                    Character::Nil
-                }
-            }
+            BorderType::Full => Character::BorderN,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn bottom(&self) -> Character {
+        match self {
+            BorderType::Full => Character::BorderS,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn left(&self) -> Character {
+        match self {
+            BorderType::Full => Character::BorderW,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn right(&self) -> Character {
+        match self {
+            BorderType::Full => Character::BorderE,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn top_left(&self) -> Character {
+        match self {
+            BorderType::Full => Character::LBorderNW,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn top_right(&self) -> Character {
+        match self {
+            BorderType::Full => Character::LBorderNE,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn bottom_left(&self) -> Character {
+        match self {
+            BorderType::Full => Character::LBorderSW,
+            BorderType::Half => todo!(),
+            BorderType::Dashed => todo!(),
+            BorderType::None => Character::Nil,
+        }
+    }
+    
+    pub fn bottom_right(&self) -> Character {
+        match self {
+            BorderType::Full => Character::LBorderSE,
             BorderType::Half => todo!(),
             BorderType::Dashed => todo!(),
             BorderType::None => Character::Nil,

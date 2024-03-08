@@ -148,6 +148,10 @@ impl AsciiBuffer {
         buffer.bounds.height -= padding.top + padding.bottom;
         buffer
     }
+    
+    pub fn border_top(&self, border_type : BorderType) {
+        
+    }
 
     pub fn square(&self) -> AsciiBoxDrawer {
         AsciiBoxDrawer {
@@ -421,7 +425,7 @@ pub struct AsciiTextDrawer<'b> {
     should_wrap: bool,
 }
 
-impl<'b> AsciiTextDrawer<'b> {
+impl <'b> AsciiTextDrawer<'b> {
     pub fn draw(self) {
         let lines: Vec<String> = if self.should_wrap {
             let lines = textwrap::wrap(self.text.as_str(), self.buffer.bounds.width as usize);
@@ -495,6 +499,100 @@ impl<'b> AsciiTextDrawer<'b> {
 
     pub fn vertical_alignment(mut self, alignment: VerticalAlignment) -> Self {
         self.vertical_alignment = alignment;
+        self
+    }
+}
+
+//=============================================================================
+//             Border Drawer
+//=============================================================================
+
+pub struct AsciiBorderDrawer<'b> {
+    buffer : &'b AsciiBuffer,
+    border_type : BorderType,
+    top : bool,
+    bottom : bool,
+    left : bool,
+    right : bool,
+}
+
+impl <'b> AsciiBorderDrawer<'b> {
+    pub fn draw(self) -> Option<AsciiBuffer> {
+        let width = self.buffer.bounds.width;
+        let height = self.buffer.bounds.height;
+        
+        if self.top {
+            let character = self.border_type.top();
+            for x in 0..width {
+                self.buffer.set_character(x as i32, 0, (character, Color::White, Color::Black));
+            }
+        }
+
+        if self.bottom {
+            let character = self.border_type.bottom();
+            for x in 0..width {
+                self.buffer.set_character(x as i32, height as i32, (character, Color::White, Color::Black));
+            }
+        }
+
+        if self.left {
+            let character = self.border_type.left();
+            for y in 0..height {
+                self.buffer.set_character(0, y as i32, (character, Color::White, Color::Black));
+            }
+        }
+
+        if self.right {
+            let character = self.border_type.right();
+            for y in 0..height {
+                self.buffer.set_character(width as i32 - 1, y as i32, (character, Color::White, Color::Black));
+            }
+        }
+        
+        let new_width = self.buffer.bounds.width - if self.left { 1 } else { 0 } - if self.right { 1 } else { 0 };
+        let new_height = self.buffer.bounds.height - if self.top { 1 } else { 0 } - if self.bottom { 1 } else { 0 };
+        let new_x = 0 + if self.left { 1 } else { 0 };
+        let new_y = 0 + if self.top { 1 } else { 0 };
+        self.buffer.sub_buffer(new_x, new_y, new_width, new_height)
+    }
+
+    pub fn all(mut self) -> Self {
+        self.top = true;
+        self.bottom = true;
+        self.left = true;
+        self.right = true;
+        self
+    }
+    
+    pub fn vertical(mut self) -> Self {
+        self.left = true;
+        self.right = true;
+        self
+    }
+    
+    pub fn horizontal(mut self) -> Self {
+        self.top = true;
+        self.bottom = true;
+        self
+    }
+    
+    pub fn top(mut self) -> Self {
+        self.top = true;
+        self
+    }
+
+    pub fn bottom(mut self) -> Self {
+        self.bottom = true;
+        self
+    }
+
+    pub fn left(mut self) -> Self {
+        self.left = true;
+        self
+    }
+
+    pub fn right(mut self) -> Self {
+        self.right = true;
         self
     }
 }
