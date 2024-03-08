@@ -64,6 +64,20 @@ impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
         self
     }
     
+    pub fn child(&mut self, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        let parent = self.current_entity.clone();
+        let entity = self.commands.spawn((
+           AsciiPosition::Relative { x: 0, y: 0, width : Value::Percent(1.0), height : Value::Percent(1.0), layer : self.entity_stack.len() as u32 },
+           AsciiNode::default(),
+           component,
+           VisibilityBundle::default()
+        )).id();
+        self.commands.entity(parent).add_child(entity.clone());
+        self.entity_stack.push_back(entity);
+        self.current_entity = entity;
+        self
+    }
+    
     pub fn hidden(&mut self) -> &mut Self {
         self.commands.entity(self.current_entity).insert(Visibility::Hidden);
         self
