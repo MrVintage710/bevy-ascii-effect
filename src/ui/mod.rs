@@ -15,6 +15,7 @@ use self::{
 use self::component::button::AsciiButton;
 
 use bevy::prelude::*;
+use bevy::window::WindowResized;
 
 //=============================================================================
 //             Ascii UI Plugin
@@ -65,9 +66,10 @@ pub struct AsciiMarkDirtyEvent;
 
 fn mark_ui_dirty(
     mut ui: Query<&mut AsciiUi>,
-    mut events : EventReader<AsciiMarkDirtyEvent>
+    mut events : EventReader<AsciiMarkDirtyEvent>,
+    window_events : EventReader<WindowResized>
 ) {
-    if !events.is_empty() {
+    if !events.is_empty() || !window_events.is_empty(){
         for mut ui in ui.iter_mut() {
             ui.is_dirty = true;
         }
