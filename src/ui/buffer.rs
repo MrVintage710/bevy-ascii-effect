@@ -49,7 +49,7 @@ impl AsciiBuffer {
         None
     }
     
-    pub fn relavtive(&self, x: i32, y: i32, width: impl Into<Value>, height: impl Into<Value>) -> AsciiBuffer {
+    pub fn relative(&self, x: i32, y: i32, width: impl Into<Value>, height: impl Into<Value>) -> AsciiBuffer {
         let mut child_bounds = AsciiBounds::default();
         AsciiPosition::relative(x, y, width, height, self.bounds.layer).format_bounds(self.bounds(), &mut child_bounds);
         AsciiBuffer {
