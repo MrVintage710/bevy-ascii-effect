@@ -57,7 +57,7 @@ impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
     }
     
     pub fn relative(&mut self, x : i32, y : i32, width : impl Into<Value>, height : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
-        self.push_from_pos(AsciiPosition::relavtive(x, y, width, height, self.entity_stack.len() as u32), component);
+        self.push_from_pos(AsciiPosition::relative(x, y, width, height, self.entity_stack.len() as u32), component);
         self
     }
     

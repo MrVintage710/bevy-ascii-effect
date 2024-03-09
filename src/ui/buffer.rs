@@ -48,6 +48,16 @@ impl AsciiBuffer {
 
         None
     }
+    
+    pub fn relavtive(&self, x: i32, y: i32, width: impl Into<Value>, height: impl Into<Value>) -> AsciiBuffer {
+        let mut child_bounds = AsciiBounds::default();
+        AsciiPosition::relative(x, y, width, height, self.bounds.layer).format_bounds(self.bounds(), &mut child_bounds);
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            bounds: child_bounds,
+            should_clip: self.should_clip
+        }
+    }
 
     pub fn top(&self, size: u32) -> AsciiBuffer {
         let mut child_bounds = AsciiBounds::default();

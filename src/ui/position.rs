@@ -198,7 +198,7 @@ pub enum AsciiPosition {
 }
 
 impl AsciiPosition {
-    pub fn relavtive(x: i32, y: i32, width: impl Into<Value>, height: impl Into<Value>, layer : u32) -> Self {
+    pub fn relative(x: i32, y: i32, width: impl Into<Value>, height: impl Into<Value>, layer : u32) -> Self {
         AsciiPosition::Relative {
             x,
             y,
