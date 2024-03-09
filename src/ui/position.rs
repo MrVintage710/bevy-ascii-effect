@@ -1,4 +1,4 @@
-use bevy::{prelude::*, utils::HashSet};
+use bevy::{prelude::*, utils::HashSet, window::WindowResized};
 
 use crate::ascii::AsciiCamera;
 
@@ -32,12 +32,13 @@ fn mark_positions_dirty(
         Option<&Children>,
     )>,
     mut ui_rerender_event : EventWriter<AsciiMarkDirtyEvent>,
+    windows_resize: EventReader<WindowResized>
 ) {
     let entities = changed_bounds
         .iter()
         .filter_map(|value| {
             let v = value.3.map(|value| value.is_changed()).unwrap_or(false);
-            if value.2.is_changed() || v  {
+            if value.2.is_changed() || v || !windows_resize.is_empty()  {
                 Some(value.0)
             } else {
                 None

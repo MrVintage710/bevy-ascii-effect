@@ -69,7 +69,7 @@ fn mark_ui_dirty(
     mut events : EventReader<AsciiMarkDirtyEvent>,
     window_events : EventReader<WindowResized>
 ) {
-    if !events.is_empty() || !window_events.is_empty(){
+    if !events.is_empty() || !window_events.is_empty() {
         for mut ui in ui.iter_mut() {
             ui.is_dirty = true;
         }
