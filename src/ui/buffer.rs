@@ -49,16 +49,43 @@ impl AsciiBuffer {
         None
     }
 
-    pub fn top(&self, size: u32) -> (AsciiBuffer, Option<AsciiBuffer>) {
-        let mut top = self.clone();
-        if size < self.bounds.height {
-            let mut bottom = self.clone();
-            top.bounds.height = size;
-            bottom.bounds.y += size as i32;
-            bottom.bounds.height -= size;
-            (top, Some(bottom))
-        } else {
-            (top, None)
+    pub fn top(&self, size: u32) -> AsciiBuffer {
+        let mut child_bounds = AsciiBounds::default();
+        AsciiPosition::top(size as i32).format_bounds(self.bounds(), &mut child_bounds);
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            bounds: child_bounds,
+            should_clip: self.should_clip
+        }
+    }
+    
+    pub fn bottom(&self, size: u32) -> AsciiBuffer {
+        let mut child_bounds = AsciiBounds::default();
+        AsciiPosition::bottom(size as i32).format_bounds(self.bounds(), &mut child_bounds);
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            bounds: child_bounds,
+            should_clip: self.should_clip
+        }
+    }
+    
+    pub fn left(&self, size: u32) -> AsciiBuffer {
+        let mut child_bounds = AsciiBounds::default();
+        AsciiPosition::left(size as i32).format_bounds(self.bounds(), &mut child_bounds);
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            bounds: child_bounds,
+            should_clip: self.should_clip
+        }
+    }
+    
+    pub fn right(&self, size: u32) -> AsciiBuffer {
+        let mut child_bounds = AsciiBounds::default();
+        AsciiPosition::right(size as i32).format_bounds(self.bounds(), &mut child_bounds);
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            bounds: child_bounds,
+            should_clip: self.should_clip
         }
     }
 
@@ -149,8 +176,17 @@ impl AsciiBuffer {
         buffer
     }
     
-    pub fn border_top(&self, border_type : BorderType) {
-        
+    pub fn border(&self, border_type : BorderType) -> AsciiBorderDrawer {
+        AsciiBorderDrawer {
+            buffer: self,
+            border_color: Color::White,
+            bg_color: Color::Black,
+            border_type,
+            top: false,
+            bottom: false,
+            left: false,
+            right: false,
+        }
     }
 
     pub fn square(&self) -> AsciiBoxDrawer {
@@ -509,6 +545,8 @@ impl <'b> AsciiTextDrawer<'b> {
 
 pub struct AsciiBorderDrawer<'b> {
     buffer : &'b AsciiBuffer,
+    border_color : Color,
+    bg_color : Color,
     border_type : BorderType,
     top : bool,
     bottom : bool,
@@ -593,6 +631,16 @@ impl <'b> AsciiBorderDrawer<'b> {
 
     pub fn right(mut self) -> Self {
         self.right = true;
+        self
+    }
+    
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+    
+    pub fn bg_color(mut self, color: Color) -> Self {
+        self.bg_color = color;
         self
     }
 }

@@ -207,8 +207,62 @@ impl AsciiPosition {
             layer,
         }
     }
+    
+    pub fn top(size : impl Into<Value>) -> Self {
+        AsciiPosition::Aligned { 
+            width: 1.0.into(),
+            height: size.into(), 
+            horizontal: HorizontalAlignment::Center, 
+            vertical: VerticalAlignment::Top 
+        }
+    }
+    
+    pub fn bottom(size : impl Into<Value>) -> Self {
+        AsciiPosition::Aligned { 
+            width: 1.0.into(),
+            height: size.into(), 
+            horizontal: HorizontalAlignment::Center, 
+            vertical: VerticalAlignment::Bottom 
+        }
+    }
+    
+    pub fn left(size : impl Into<Value>) -> Self {
+        AsciiPosition::Aligned { 
+            width: size.into(),
+            height: 1.0.into(), 
+            horizontal: HorizontalAlignment::Left, 
+            vertical: VerticalAlignment::Center 
+        }
+    }
+    
+    pub fn right(size : impl Into<Value>) -> Self {
+        AsciiPosition::Aligned { 
+            width: size.into(),
+            height: 1.0.into(), 
+            horizontal: HorizontalAlignment::Right, 
+            vertical: VerticalAlignment::Center 
+        }
+    }
+    
+    pub fn centered(width: impl Into<Value>, height: impl Into<Value>) -> Self {
+        AsciiPosition::Aligned { 
+            width: width.into(),
+            height: height.into(), 
+            horizontal: HorizontalAlignment::Center, 
+            vertical: VerticalAlignment::Center 
+        }
+    }
+    
+    pub fn fill() -> Self {
+        AsciiPosition::Aligned { 
+            width: 1.0.into(),
+            height: 1.0.into(), 
+            horizontal: HorizontalAlignment::Center, 
+            vertical: VerticalAlignment::Center 
+        }
+    }
 
-    pub fn align(
+    pub fn aligned(
         width: impl Into<Value>,
         height: impl Into<Value>,
         horizontal: HorizontalAlignment,
@@ -222,7 +276,7 @@ impl AsciiPosition {
         }
     }
 
-    pub fn format_bounds(&self, parent_bounds: &mut AsciiBounds, child_bounds: &mut AsciiBounds) {
+    pub fn format_bounds(&self, parent_bounds: &AsciiBounds, child_bounds: &mut AsciiBounds) {
         match self {
             AsciiPosition::Aligned {
                 width,
@@ -245,12 +299,14 @@ impl AsciiPosition {
                 slice,
             } => {
                 // Self::format_bounds_vertical_slice(*total_silces, *slice, parent_bounds)
+                todo!()
             }
             AsciiPosition::HorizontalSlice {
                 total_silces,
                 slice,
             } => {
                 // Self::create_bounds_horizontal_slice(*total_silces, *slice, parent_bounds)
+                todo!()
             }
             AsciiPosition::Relative { x, y, width, height, layer } => {
                 Self::format_bounds_relative(*x, *y, *width, *height, *layer, parent_bounds, child_bounds)

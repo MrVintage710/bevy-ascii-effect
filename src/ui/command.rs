@@ -36,45 +36,43 @@ pub struct AsciiUiCommands<'c, 'w, 's> {
 }
 
 impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
+    pub fn top(&mut self, size : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        self.push_from_pos(AsciiPosition::top(size), component);
+        self
+    }
+    
+    pub fn bottom(&mut self, size : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        self.push_from_pos(AsciiPosition::bottom(size), component);
+        self
+    }
+    
+    pub fn left(&mut self, size : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        self.push_from_pos(AsciiPosition::left(size), component);
+        self
+    }
+    
+    pub fn right(&mut self, size : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        self.push_from_pos(AsciiPosition::right(size), component);
+        self
+    }
+    
     pub fn relative(&mut self, x : i32, y : i32, width : impl Into<Value>, height : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
-        let parent = self.current_entity.clone();
-        let entity = self.commands.spawn((
-           AsciiPosition::Relative { x, y, width : width.into(), height : height.into(), layer : self.entity_stack.len() as u32 },
-           AsciiNode::default(),
-           component,
-           VisibilityBundle::default()
-        )).id();
-        self.commands.entity(parent).add_child(entity.clone());
-        self.entity_stack.push_back(entity);
-        self.current_entity = entity;
+        self.push_from_pos(AsciiPosition::relavtive(x, y, width, height, self.entity_stack.len() as u32), component);
+        self
+    }
+    
+    pub fn centered(&mut self, width : impl Into<Value>, height : impl Into<Value>, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        self.push_from_pos(AsciiPosition::centered(width, height), component);
+        self
+    }
+    
+    pub fn fill(&mut self, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
+        self.push_from_pos(AsciiPosition::fill(), component);
         self
     }
 
     pub fn aligned(&mut self, width : impl Into<Value>, height : impl Into<Value>, ha : HorizontalAlignment, va : VerticalAlignment, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
-        let parent = self.current_entity.clone();
-        let entity = self.commands.spawn((
-           AsciiPosition::Aligned { width : width.into(), height : height.into(), horizontal: ha, vertical: va },
-           AsciiNode::default(),
-           component,
-           VisibilityBundle::default()
-        )).id();
-        self.commands.entity(parent).add_child(entity.clone());
-        self.entity_stack.push_back(entity);
-        self.current_entity = entity;
-        self
-    }
-    
-    pub fn child(&mut self, component : impl AsciiComponent + Send + Sync + 'static) -> &mut Self {
-        let parent = self.current_entity.clone();
-        let entity = self.commands.spawn((
-           AsciiPosition::Relative { x: 0, y: 0, width : Value::Percent(1.0), height : Value::Percent(1.0), layer : self.entity_stack.len() as u32 },
-           AsciiNode::default(),
-           component,
-           VisibilityBundle::default()
-        )).id();
-        self.commands.entity(parent).add_child(entity.clone());
-        self.entity_stack.push_back(entity);
-        self.current_entity = entity;
+        self.push_from_pos(AsciiPosition::aligned(width, height, ha, va), component);
         self
     }
     
@@ -98,5 +96,18 @@ impl<'c, 'w, 's> AsciiUiCommands<'c, 'w, 's> {
             self.current_entity = self.entity_stack.pop_back().unwrap();
         }
         self
+    }
+    
+    fn push_from_pos(&mut self, pos : AsciiPosition, component : impl AsciiComponent + Send + Sync + 'static) {
+        let parent = self.current_entity.clone();
+        let entity = self.commands.spawn((
+            pos,
+            AsciiNode::default(),
+            component,
+            VisibilityBundle::default()
+        )).id();
+        self.commands.entity(parent).add_child(entity.clone());
+        self.entity_stack.push_back(parent);
+        self.current_entity = entity;
     }
 }
