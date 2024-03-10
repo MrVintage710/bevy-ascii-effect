@@ -22,4 +22,6 @@ pub mod prelude {
     pub use crate::ui::AsciiMarkDirtyEvent;
     pub use crate::ui::BorderType;
     pub use crate::ui::character::Color as AsciiColor;
+    pub use crate::ui::character::AsciiCharacter;
+    pub use crate::ui::character::Character;
 }
