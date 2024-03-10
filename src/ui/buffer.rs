@@ -34,15 +34,18 @@ impl AsciiBuffer {
     }
 
     pub fn set_character(&self, x: i32, y: i32, character: impl Into<AsciiCharacter>) {
+        let x = self.bounds.x + x;
+        let y = self.bounds.y + y;
+        
         if let Some(clip_bounds) = &self.clip_bounds {
-            if !clip_bounds.is_within_local(x, y) {
+            if !clip_bounds.is_within(x, y) {
                 return;
             }
         }
         
         let character = character.into().with_layer(self.bounds.layer);
         self.surface
-            .set_character(self.bounds.x + x, self.bounds.y + y, character);
+            .set_character(x, y, character);
             
     }
 
