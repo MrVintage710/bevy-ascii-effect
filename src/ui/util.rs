@@ -176,3 +176,11 @@ impl <T> DerefMut for Variable<T> {
         &mut self.value
     }
 }
+
+//=============================================================================
+//            Line Braker
+//=============================================================================
+
+pub fn break_string_into_lines(string : &str, max_width : usize) -> Vec<String> {
+    textwrap::wrap(string, max_width).iter().map(|s| s.to_string()).collect()
+}
