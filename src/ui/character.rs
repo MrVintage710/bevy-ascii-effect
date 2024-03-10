@@ -308,7 +308,7 @@ impl From<char> for Character {
             '>' => Character::GreaterThan,
             '?' => Character::QuestionMark,
             '_' => Character::BorderS,
-            _ => Character::QuestionMark,
+            _ => Character::Nil,
         }
     }
 }
