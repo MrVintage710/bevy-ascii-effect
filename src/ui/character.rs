@@ -203,7 +203,7 @@ pub enum Character {
     Ball,
     Cross,
     DitherW,
-    DashedVerticalCenter,
+    Pipe,
     Pi,
     StairNE,
     Nil,
@@ -308,6 +308,7 @@ impl From<char> for Character {
             '>' => Character::GreaterThan,
             '?' => Character::QuestionMark,
             '_' => Character::BorderS,
+            '|' => Character::Pipe,
             _ => Character::Nil,
         }
     }
