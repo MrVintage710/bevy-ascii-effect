@@ -13,20 +13,32 @@ use super::{
 pub struct AsciiBuffer {
     surface: AsciiSurface,
     pub bounds: AsciiBounds,
-    should_clip : bool,
+    clip_bounds: Option<AsciiBounds>,
 }
 
 impl AsciiBuffer {
-    pub fn new(surface: &AsciiSurface, bounds: &AsciiBounds, should_clip : bool) -> Self {
+    pub fn new(surface: &AsciiSurface, bounds: &AsciiBounds, clip_bounds : Option<AsciiBounds>) -> Self {
         AsciiBuffer {
             surface: surface.clone(),
             bounds: bounds.clone(),
-            should_clip
+            clip_bounds,
+        }
+    }
+    
+    pub fn clip(&self) -> AsciiBuffer {
+        AsciiBuffer {
+            surface: self.surface.clone(),
+            bounds: self.bounds.clone(),
+            clip_bounds: Some(self.bounds.clone()),
         }
     }
 
     pub fn set_character(&self, x: i32, y: i32, character: impl Into<AsciiCharacter>) {
-        if self.should_clip && !self.bounds.is_within_local(x, y) { return }
+        if let Some(clip_bounds) = &self.clip_bounds {
+            if !clip_bounds.is_within_local(x, y) {
+                return;
+            }
+        }
         
         let character = character.into().with_layer(self.bounds.layer);
         self.surface
@@ -42,7 +54,7 @@ impl AsciiBuffer {
             return Some(AsciiBuffer {
                 surface: self.surface.clone(),
                 bounds: AsciiBounds::new(x, y, width, height, self.bounds.layer + 1),
-                should_clip: self.should_clip
+                clip_bounds: self.clip_bounds.clone(),
             });
         }
 
@@ -55,7 +67,7 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             bounds: child_bounds,
-            should_clip: self.should_clip
+            clip_bounds: self.clip_bounds.clone(),
         }
     }
 
@@ -65,7 +77,7 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             bounds: child_bounds,
-            should_clip: self.should_clip
+            clip_bounds: self.clip_bounds.clone(),
         }
     }
     
@@ -75,7 +87,7 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             bounds: child_bounds,
-            should_clip: self.should_clip
+            clip_bounds: self.clip_bounds.clone(),
         }
     }
     
@@ -85,7 +97,7 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             bounds: child_bounds,
-            should_clip: self.should_clip
+            clip_bounds: self.clip_bounds.clone(),
         }
     }
     
@@ -95,7 +107,7 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             bounds: child_bounds,
-            should_clip: self.should_clip
+            clip_bounds: self.clip_bounds.clone(),
         }
     }
 
@@ -105,69 +117,69 @@ impl AsciiBuffer {
         AsciiBuffer {
             surface: self.surface.clone(),
             bounds: child_bounds,
-            should_clip: self.should_clip
+            clip_bounds: self.clip_bounds.clone(),
         }
     }
 
-    pub fn vertical_split<const COUNT: usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
-        let width = self.bounds.width / COUNT as u32;
-        if width == 0 {
-            return None;
-        }
-        let mut buffers = Vec::new();
-        let mut x = 0;
-        for _ in 0..COUNT {
-            let buffer = AsciiBuffer {
-                surface: self.surface.clone(),
-                bounds: AsciiBounds::new(
-                    self.bounds.x + x,
-                    self.bounds().y,
-                    width,
-                    self.bounds.height,
-                    self.bounds.layer + 1,
-                ),
-                should_clip: self.should_clip
-            };
-            buffers.push(buffer);
-            x += width as i32;
-        }
+    // pub fn vertical_split<const COUNT: usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
+    //     let width = self.bounds.width / COUNT as u32;
+    //     if width == 0 {
+    //         return None;
+    //     }
+    //     let mut buffers = Vec::new();
+    //     let mut x = 0;
+    //     for _ in 0..COUNT {
+    //         let buffer = AsciiBuffer {
+    //             surface: self.surface.clone(),
+    //             bounds: AsciiBounds::new(
+    //                 self.bounds.x + x,
+    //                 self.bounds().y,
+    //                 width,
+    //                 self.bounds.height,
+    //                 self.bounds.layer + 1,
+    //             ),
+    //             should_clip: self.should_clip.clone()
+    //         };
+    //         buffers.push(buffer);
+    //         x += width as i32;
+    //     }
 
-        if let Ok(buffer) = buffers.try_into() {
-            Some(buffer)
-        } else {
-            None
-        }
-    }
+    //     if let Ok(buffer) = buffers.try_into() {
+    //         Some(buffer)
+    //     } else {
+    //         None
+    //     }
+    // }
 
-    pub fn horizontal_split<const COUNT: usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
-        let height = self.bounds.width / COUNT as u32;
-        if height == 0 {
-            return None;
-        }
-        let mut buffers = Vec::new();
-        let mut y = 0;
-        for _ in 0..COUNT {
-            let buffer = AsciiBuffer {
-                surface: self.surface.clone(),
-                bounds: AsciiBounds::new(
-                    self.bounds.x,
-                    self.bounds.y + y,
-                    self.bounds.width,
-                    height,
-                    self.bounds.layer + 1,
-                ),
-                should_clip: self.should_clip
-            };
-            buffers.push(buffer);
-            y += height as i32;
-        }
+    // pub fn horizontal_split<const COUNT: usize>(&self) -> Option<[AsciiBuffer; COUNT]> {
+    //     let height = self.bounds.width / COUNT as u32;
+    //     if height == 0 {
+    //         return None;
+    //     }
+    //     let mut buffers = Vec::new();
+    //     let mut y = 0;
+    //     for _ in 0..COUNT {
+    //         let buffer = AsciiBuffer {
+    //             surface: self.surface.clone(),
+    //             bounds: AsciiBounds::new(
+    //                 self.bounds.x,
+    //                 self.bounds.y + y,
+    //                 self.bounds.width,
+    //                 height,
+    //                 self.bounds.layer + 1,
+    //             ),
+    //             should_clip: self.should_clip
+    //         };
+    //         buffers.push(buffer);
+    //         y += height as i32;
+    //     }
 
-        if let Ok(buffer) = buffers.try_into() {
-            Some(buffer)
-        } else {
-            None
-        }
-    }
+    //     if let Ok(buffer) = buffers.try_into() {
+    //         Some(buffer)
+    //     } else {
+    //         None
+    //     }
+    // }
 
     pub fn padding(&self, padding: impl Into<Padding>) -> AsciiBuffer {
         let padding = padding.into();

@@ -107,7 +107,7 @@ pub fn extract_ascii_ui<C: AsciiComponent>(
             }
 
             let surface = &buffer.0;
-            let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds, *global_bounds.clip_bounds);
+            let mut buffer = AsciiBuffer::new(surface, &global_bounds.bounds, None);
             
             component.render(&mut buffer);
         }
